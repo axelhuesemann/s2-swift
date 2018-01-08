@@ -238,34 +238,27 @@ class S2CellIdTests: XCTestCase {
       // at the given level. At level 0, everything is one cell of the full size
       // of the space.  At maxLevel, the bounding rect is almost floating point
       // noise.
-  
       // What should be out of bounds values, but passes the C++ code as well.
       (-1, -1, 0, r(-5, -5, -1, -1)),
       (-1 * maxIJ, -1 * maxIJ, 0, r(-5, -5, -1, -1)),
       (-1, -1, CellId.maxLevel, r(-1.0000000024835267, -1.0000000024835267, -1, -1)),
 //      (0, 0, CellId.maxLevel + 1, r(-1, -1, -1, -1)),
-  
       // Minimum i,j at different levels
       (0, 0, 0, r(-1, -1, 1, 1)),
       (0, 0, CellId.maxLevel / 2, r(-1, -1, -0.999918621033430099, -0.999918621033430099)),
       (0, 0, CellId.maxLevel, r(-1, -1, -0.999999997516473060, -0.999999997516473060)),
-  
       // Just a hair off the outer bounds at different levels.
       (1, 1, 0, r(-1, -1, 1, 1)),
       (1, 1, CellId.maxLevel / 2, r(-1, -1, -0.999918621033430099, -0.999918621033430099)),
       (1, 1, CellId.maxLevel, r(-0.9999999975164731, -0.9999999975164731, -0.9999999950329462, -0.9999999950329462)),
-  
       // Center point of the i,j space at different levels.
       (maxIJ / 2, maxIJ / 2, 0, r(-1, -1, 1, 1)),
       (maxIJ / 2, maxIJ / 2, CellId.maxLevel / 2, r(-0.000040691345930099, -0.000040691345930099, 0, 0)),
       (maxIJ / 2, maxIJ / 2, CellId.maxLevel, r(-0.000000001241763433, -0.000000001241763433, 0, 0)),
-  
       // Maximum i, j at different levels.
       (maxIJ, maxIJ, 0, r(-1, -1, 1, 1)),
       (maxIJ, maxIJ, CellId.maxLevel / 2, r(0.999918621033430099, 0.999918621033430099, 1, 1)),
-      (maxIJ, maxIJ, CellId.maxLevel, r(0.999999997516473060, 0.999999997516473060, 1, 1)),
-    ]
-  
+      (maxIJ, maxIJ, CellId.maxLevel, r(0.999999997516473060, 0.999999997516473060, 1, 1))]
     for (i, j, level, want) in tests {
       let uv = CellId.ijLevelToBoundUV(i: i, j: j, level: level)
       XCTAssertEqual(uv.x.lo, want.x.lo, accuracy: 1e-14)

@@ -6,6 +6,9 @@
 import Foundation
 
 
+/// Helper class for Call and CellId. Needs not be published.
+/// Represents a projection of S2 coordinates onto a unit cube with 6 faces (of course)
+/// and an edge length of 1.
 struct S2Cube {
   
   // projection of a point on the sphere onto a bounding cube.
@@ -55,9 +58,9 @@ struct S2Cube {
   // This uses what the C++ version calls 'the quadratic transform'.
   static func stToUV(_ s: Double) -> Double {
     if s >= 0.5 {
-      return (1.0 / 3.0) * (4*s*s - 1)
+      return (1.0 / 3.0) * (4 * s * s - 1)
     }
-    return (1.0 / 3.0) * (1 - 4*(1-s)*(1-s))
+    return (1.0 / 3.0) * (1 - 4 * (1 - s) * (1 - s))
   }
   
   // uvToST is the inverse of the stToUV transformation. Note that it

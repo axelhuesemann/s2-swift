@@ -370,13 +370,14 @@ public struct S2Rect: S2RegionType {
     let vertices = (0..<4).map { cell.vertex($0) }
     var latlngs = [LatLng]() // 4
     for i in 0..<vertices.count {
-      latlngs[i] = LatLng(point: vertices[i])
-      if contains(latlngs[i]) {
+      let latlng = LatLng(point: vertices[i])
+      if contains(latlng) {
         return true
       }
       if cell.contains(vertex(i).toPoint()) {
         return true
       }
+      latlngs.append(latlng)
     }
     // Now check whether the boundaries intersect. Unfortunately, a
     // latitude-longitude rectangle does not have straight edges: two edges

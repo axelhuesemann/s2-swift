@@ -9,7 +9,8 @@ import XCTest
 
 func makeLoop(_ s: String) -> S2Loop {
   let points = parsePoints(s)
-  return S2Loop.loopFromPoints(points)
+  return S2Loop(points: points)
+//  return S2Loop.loopFromPoints(points)
 }
 
 
@@ -71,7 +72,7 @@ class S2LoopTests: XCTestCase {
   let loopA = makeLoop("0:178, -1:180, 0:-179, 1:-180")
   
   // Like loopA, but the vertices are at leaf cell centers.
-  let snappedLoopA = S2Loop.loopFromPoints([
+  let snappedLoopA = S2Loop(points: [
     CellId(latLng: parseLatLngs("0:178")[0]).point(),
     CellId(latLng: parseLatLngs("-1:180")[0]).point(),
     CellId(latLng: parseLatLngs("0:-179")[0]).point(),
@@ -156,7 +157,7 @@ class S2LoopTests: XCTestCase {
   }
   
   func testLoopRectBound() {
-    let _ = S2Loop.loopFromPoints([S2Point(x: 0, y: 0, z: -1)])
+    let _ = S2Loop(points: [S2Point(x: 0, y: 0, z: -1)])
 
     XCTAssertTrue(S2Loop.empty.rectBound().isEmpty)
     XCTAssertTrue(S2Loop.full.rectBound().isFull)
@@ -185,11 +186,7 @@ class S2LoopTests: XCTestCase {
   }
   
   func invert(l: S2Loop) -> S2Loop {
-//    var vertices = make([]Point, 0, len(l.vertices))
-//    for i := len(l.vertices) - 1; i >= 0; i-- {
-//      vertices.append(l.vertices[i])
-//    }
-    return S2Loop.loopFromPoints(l.vertices.reversed())
+    return S2Loop(points: l.vertices.reversed())
   }
   
   func testOriginInside() {
@@ -289,7 +286,7 @@ class S2LoopTests: XCTestCase {
       vertices.append(l.vertices[i])
     }
     vertices.append(l.vertices[0])
-    return S2Loop.loopFromPoints(vertices)
+    return S2Loop(points: vertices)
   }
   
   func testRegion() {
