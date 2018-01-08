@@ -157,6 +157,8 @@ public struct S2Cap: S2RegionType {
     return isFull || center.v.sub(point.v).norm2 < 2 * height
   }
 
+  // MARK: contains / intersects Cell
+  
   /// Reports whether the cap contains the given cell.
   public func contains(_ cell: Cell) -> Bool {
     // If the cap does not contain all cell vertices, return false.

@@ -560,7 +560,6 @@ public struct CellId {
     // Find the leaf cell coordinates on the adjacent face, and convert
     // them to a cell id at the appropriate level.
     let raw = S2Cube(face: face, u: u, v: v).vector()
-    
     let cube = S2Cube(point: S2Point(raw: raw))
     let i__ = CellId.stToIJ(0.5 * (cube.u+1))
     let j__ = CellId.stToIJ(0.5 * (cube.v+1))

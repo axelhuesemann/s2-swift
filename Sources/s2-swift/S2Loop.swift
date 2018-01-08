@@ -54,39 +54,40 @@ public struct S2Loop: S2ShapeType, S2RegionType {
   /// 1 point is a special empty or full, depending on it being in the northern hemisphere or not
   /// 0 or 2 points are incomplete loops
   init(points: [S2Point]) {
-    let vertices = points
-    // figure out origin
-    let originInside: Bool
+    let (originInside, bound, subregionBound) = S2Loop.computeBounds(vertices: points)
+    self.init(vertices: points, originInside: originInside, bound: bound, subregionBound: subregionBound)
+  }
+  
+  static func computeBounds(vertices: [S2Point]) -> (originInside: Bool, bound: S2Rect, subregionBound: S2Rect) {
+    //
     switch vertices.count {
     case 1:
       // this is the special empty or full loop
       // the origin depends on if the vertex is in the southern hemisphere or not.
-      originInside = vertices[0].z < 0
+      let originInside = vertices[0].z < 0
       let bound = originInside ? S2Rect.full : S2Rect.empty
-      self.init(vertices: vertices, originInside: originInside, bound: bound, subregionBound: bound)
-      return
+      return (originInside: originInside, bound: bound, subregionBound: bound)
     case 0, 2:
       // these are incomplete loops
-      self.init(vertices: vertices, originInside: false, bound: S2Rect.empty, subregionBound: S2Rect.empty)
-      return
-    default:
-      // Point containment testing is done by counting edge crossings starting
-      // at a fixed point on the sphere (OriginPoint). We need to know whether
-      // the reference point (OriginPoint) is inside or outside the loop before
-      // we can construct the S2ShapeIndex. We do this by first guessing that
-      // it is outside, and then seeing whether we get the correct containment
-      // result for vertex 1. If the result is incorrect, the origin must be
-      // inside the loop.
-      // A loop with consecutive vertices A,B,C contains vertex B if and only if
-      // the fixed vector R = B.Ortho is contained by the wedge ABC. The
-      // wedge is closed at A and open at C, i.e. the point B is inside the loop
-      // if A = R but not if C = R. This convention is required for compatibility
-      // with VertexCrossing. (Note that we can't use OriginPoint
-      // as the fixed vector because of the possibility that B == OriginPoint.)
-      let ortho = S2Point(raw: vertices[1].v.ortho())
-      let v1Inside = S2Point.orderedCCW(ortho, vertices[0], vertices[2], vertices[1])
-      originInside = v1Inside != S2Loop.contains(vertices[1], vertices: vertices, originInside: false)
+      return (originInside: false, bound: S2Rect.empty, subregionBound: S2Rect.empty)
+    default: break
     }
+    // Point containment testing is done by counting edge crossings starting
+    // at a fixed point on the sphere (OriginPoint). We need to know whether
+    // the reference point (OriginPoint) is inside or outside the loop before
+    // we can construct the S2ShapeIndex. We do this by first guessing that
+    // it is outside, and then seeing whether we get the correct containment
+    // result for vertex 1. If the result is incorrect, the origin must be
+    // inside the loop.
+    // A loop with consecutive vertices A,B,C contains vertex B if and only if
+    // the fixed vector R = B.Ortho is contained by the wedge ABC. The
+    // wedge is closed at A and open at C, i.e. the point B is inside the loop
+    // if A = R but not if C = R. This convention is required for compatibility
+    // with VertexCrossing. (Note that we can't use OriginPoint
+    // as the fixed vector because of the possibility that B == OriginPoint.)
+    let ortho = S2Point(raw: vertices[1].v.ortho())
+    let v1Inside = S2Point.orderedCCW(ortho, vertices[0], vertices[2], vertices[1])
+    let originInside = v1Inside != S2Loop.contains(vertices[1], vertices: vertices, originInside: false)
     // We *must* call initBound before initIndex, because initBound calls
     // ContainsPoint(s2.Point), and ContainsPoint(s2.Point) does a bounds check whenever the
     // index is not fresh (i.e., the loop has been added to the index but the
@@ -114,11 +115,9 @@ public struct S2Loop: S2ShapeType, S2RegionType {
     if b.lng.isFull && S2Loop.contains(S2Point(x: 0, y: 0, z: -1), vertices: vertices, originInside: originInside) {
       b = S2Rect(lat: R1Interval(lo: -.pi / 2.0, hi: b.lat.hi), lng: S1Interval.full)
     }
-    self.init(vertices: vertices, originInside: originInside, bound: b, subregionBound: b.expandForSubregions())
-    // TODO: Depends on s2shapeindex being implemented.
-    // l.initIndex()
+    return (originInside: originInside, bound: b, subregionBound: b.expandForSubregions())
   }
-
+  
   /// Returns true if the loop contains the point
   static func contains(_ point: S2Point, vertices: [S2Point], originInside: Bool) -> Bool {
     // TODO: Move to bruteForceContains and update with ShapeIndex when available.
@@ -226,6 +225,8 @@ public struct S2Loop: S2ShapeType, S2RegionType {
     return inside
   }
 
+  // MARK: intersects / contains Cell
+  
   /// Reports whether the loop contains the given cell
   public func contains(_ cell: Cell) -> Bool {
     let cellVertices = (0..<4).map { cell.vertex($0) }
