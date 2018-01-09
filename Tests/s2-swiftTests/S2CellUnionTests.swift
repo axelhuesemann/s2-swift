@@ -21,7 +21,7 @@ class S2CellUnionTests: XCTestCase {
   }
   
   func testNormalization() {
-    let cu = CellUnion(ids: [
+    var cu = CellUnion(ids: [
       0x80855c0000000000, // A: a cell over Pittsburg CA
       0x80855d0000000000, // B, a child of A
       0x8085634000000000, // first child of X, disjoint from A
@@ -46,19 +46,19 @@ class S2CellUnionTests: XCTestCase {
   }
 
   func testCellUnionBasic() {
-    let empty = CellUnion(ids: [])
+    var empty = CellUnion(ids: [])
     empty.normalize()
     XCTAssertEqual(empty.count, 0)
     let face1Id = CellId(face: 1)
     let face1Cell = Cell(id: face1Id)
-    let face1Union = CellUnion(cellIds: [face1Id])
+    var face1Union = CellUnion(cellIds: [face1Id])
     face1Union.normalize()
     XCTAssertEqual(face1Union.count, 1)
     XCTAssertEqual(face1Id, face1Union[0])
     XCTAssertTrue(face1Union.contains(face1Cell))
     let face2Id = CellId(face: 2)
     let face2Cell = Cell(id: face2Id)
-    let face2Union = CellUnion(cellIds: [face2Id])
+    var face2Union = CellUnion(cellIds: [face2Id])
     face2Union.normalize()
     XCTAssertEqual(face2Union.count, 1)
     XCTAssertEqual(face2Id, face2Union[0])
@@ -155,7 +155,7 @@ class S2CellUnionTests: XCTestCase {
 				0x87a0000029d00000,
 				0x9500000000000000])]
     for (cells, contained, overlaps, disjoint) in tests {
-      let union = CellUnion(ids: cells)
+      var union = CellUnion(ids: cells)
       union.normalize()
       // Ensure self-containment tests are correct.
       for id in cells {
@@ -259,7 +259,7 @@ class S2CellUnionTests: XCTestCase {
       addCells(id: CellId(id: 0), selected: false, input: &input, expected: &expected)
       inSum += input.count
       outSum += expected.count
-      let cellunion = CellUnion(cellIds: input)
+      var cellunion = CellUnion(cellIds: input)
       cellunion.normalize()
       //
       XCTAssertEqual(expected.count, cellunion.count)
@@ -370,6 +370,7 @@ class S2CellUnionTests: XCTestCase {
           CellId(face: 2).childBegin(9).children()[2],
           CellId(face: 2).childBegin(9).children()[3]]))]
       for (_, minL, lMod, cu, exp) in tests {
+        var cu = cu
         cu.denormalize(minLevel: minL, levelMod: lMod)
         XCTAssertEqual(cu, exp)
       }

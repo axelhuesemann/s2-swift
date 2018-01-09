@@ -301,3 +301,16 @@ public struct Cell: S2RegionType {
   }
 
 }
+
+extension Cell: Equatable, Comparable {
+  
+  public static func ==(lhs: Cell, rhs: Cell) -> Bool {
+    return lhs.id == rhs.id
+  }
+  
+  public static func <(lhs: Cell, rhs: Cell) -> Bool {
+    return lhs.id < rhs.id
+  }
+  
+}
+

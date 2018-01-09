@@ -84,14 +84,14 @@ public struct RegionCoverer {
   
   // Covering returns a CellUnion that covers the given region and satisfies the various restrictions.
   func covering(region: S2RegionType) -> CellUnion {
-    let covering = cellUnion(region: region)
+    var covering = cellUnion(region: region)
     covering.denormalize(minLevel: max(0, min(maxLevel, minLevel)), levelMod: max(1, min(3, levelMod)))
     return covering
   }
   
   // InteriorCovering returns a CellUnion that is contained within the given region and satisfies the various restrictions.
   func interiorCovering(region: S2RegionType) -> CellUnion {
-    let covering = interiorCellUnion(region: region)
+    var covering = interiorCellUnion(region: region)
     covering.denormalize(minLevel: max(0, min(maxLevel, minLevel)), levelMod: max(1, min(3, levelMod)))
     return covering
   }
@@ -105,7 +105,7 @@ public struct RegionCoverer {
   func cellUnion(region: S2RegionType) -> CellUnion {
     let coverer = newCoverer()
     coverer.coveringInternal(region: region)
-    let union = coverer.result
+    var union = coverer.result
     union.normalize()
     return union
   }
@@ -120,7 +120,7 @@ public struct RegionCoverer {
     let coverer = newCoverer()
     coverer.interiorCovering = true
     coverer.coveringInternal(region: region)
-    let union = coverer.result
+    var union = coverer.result
     union.normalize()
     return union
   }
@@ -317,6 +317,7 @@ class Coverer  {
     if levelMod == 1 {
       return cells
     }
+    var cells = cells
     var out = 0
     for ci in cells.cellIds {
       let level = ci.level()
@@ -397,7 +398,7 @@ class Coverer  {
   // at most 4 cells (except for very large caps, which may need up to 6 cells).
   // The output is not sorted.
   func rawFastCovering(cap: S2Cap) -> CellUnion {
-    let covering = CellUnion(ids: [])
+    var covering = CellUnion(ids: [])
     // Find the maximum level such that the cap contains at most one cell vertex
     // and such that CellId.VertexNeighbors() can be called.
     let level = min(S2CellMetric.minWidth.maxLevel(2 * cap.radius()), CellId.maxLevel-1)
@@ -422,6 +423,7 @@ class Coverer  {
   // Note that when the covering parameters have their default values, almost
   // all of the code in this function is skipped.
   func normalize(covering: CellUnion) -> CellUnion {
+    var covering = covering
     // If any cells are too small, or don't satisfy levelMod, then replace them with ancestors.
     if maxLevel < CellId.maxLevel || levelMod > 1 {
       for i in 0..<covering.count {

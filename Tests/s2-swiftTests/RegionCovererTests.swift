@@ -105,7 +105,7 @@ class RegionCovererTests: XCTestCase {
   
   func checkCovering(rc: RegionCoverer, r: S2RegionType) {
     // exterior cover
-    let covering = rc.covering(region: r)
+    var covering = rc.covering(region: r)
     checkCovering(rc: rc, r: r, covering: covering, interior: false)
     // interior cover
     let interior = rc.interiorCovering(region: r)
@@ -124,7 +124,7 @@ class RegionCovererTests: XCTestCase {
   func checkCovering(rc: RegionCoverer, r: S2RegionType, covering: CellUnion, interior: Bool) {
     // Keep track of how many cells have the same rc.MinLevel ancestor.
     var minLevelCells = [CellId: Int]()
-    let tempCover = CellUnion(ids: [])
+    var tempCover = CellUnion(ids: [])
     for i in 0..<covering.count {
       let ci = covering[i]
       let level = ci.level()

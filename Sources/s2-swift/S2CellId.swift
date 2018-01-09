@@ -238,6 +238,49 @@ public struct CellId {
     return results
   }
 
+  /// Returns all neighbors of this cell at the given level. Two
+  /// cells X and Y are neighbors if their boundaries intersect but their
+  /// interiors do not. In particular, two cells that intersect at a single
+  /// point are neighbors. Note that for cells adjacent to a face vertex, the
+  /// same neighbor may be returned more than once. There could be up to eight
+  /// neighbors including the diagonal ones that share the vertex.
+  /// This requires level >= ci.Level().
+  func allNeighbors(level: Int) -> [CellId] {
+    var neighbors = [CellId]()
+    var (face, i, j, _) = faceIJOrientation()
+    // Find the coordinates of the lower left-hand leaf cell. We need to
+    // normalize (i,j) to a known position within the cell because level
+    // may be larger than this cell's level.
+    let size = CellId.sizeIJ(level)
+    i &= -size
+    j &= -size
+    let nbrSize = CellId.sizeIJ(level)
+    // We compute the top-bottom, left-right, and diagonal neighbors in one
+    // pass. The loop test is at the end of the loop to avoid 32-bit overflow.
+    var k = -nbrSize
+    while true {
+      let sameFace: Bool
+      if k < 0 {
+        sameFace = (j+k >= 0)
+      } else if k >= size {
+        sameFace = (j+k < CellId.maxSize)
+      } else {
+        sameFace = true
+        // Top and bottom neighbors.
+        neighbors.append(CellId(face: face, i: i+k, j: j-nbrSize, sameFace: j-size >= 0).parent(level))
+        neighbors.append(CellId(face: face, i: i+k, j: j+size, sameFace: j+size < CellId.maxSize).parent(level))
+      }
+      // Left, right, and diagonal neighbors.
+      neighbors.append(CellId(face: face, i: i-nbrSize, j: j+k, sameFace: sameFace && i-size >= 0).parent(level))
+      neighbors.append(CellId(face: face, i: i+size, j: j+k, sameFace: sameFace && i+size < CellId.maxSize).parent(level))
+      if k >= size {
+        break
+      }
+      k += nbrSize
+    }
+    return neighbors
+  }
+  
   // MARK: contain / intersect
   
   /// Returns the minimum CellId that is contained within this cell.
@@ -427,6 +470,50 @@ public struct CellId {
 //  func children(level: Int) -> CellIdSequence {
 //    return CellIdSequence(parent: self, level: level)
 //  }
+  
+  /// MaxTile returns the largest cell with the same RangeMin such that
+  /// RangeMax < limit.RangeMin. It returns limit if no such cell exists.
+  /// This method can be used to generate a small set of CellIDs that covers
+  /// a given range (a tiling). This example shows how to generate a tiling
+  /// for a semi-open range of leaf cells [start, limit):
+  ///
+  ///   for id := start.MaxTile(limit); id != limit; id = id.Next().MaxTile(limit)) { ... }
+  ///
+  /// Note that in general the cells in the tiling will be of different sizes;
+  /// they gradually get larger (near the middle of the range) and then
+  /// gradually get smaller as limit is approached.
+  func maxTile(limit: CellId) -> CellId {
+    let start = rangeMin()
+    if start >= limit.rangeMin() {
+      return limit
+    }
+    var ci = self
+    if rangeMax() >= limit {
+      // The cell is too large, shrink it. Note that when generating coverings
+      // of CellID ranges, this loop usually executes only once. Also because
+      // ci.RangeMin() < limit.RangeMin(), we will always exit the loop by the
+      // time we reach a leaf cell.
+      while true {
+        ci = ci.children()[0]
+        if ci.rangeMax() < limit {
+          break
+        }
+      }
+      return ci
+    }
+    // The cell may be too small. Grow it if necessary. Note that generally
+    // this loop only iterates once.
+    while !ci.isFace() {
+      let parent = ci.immediateParent()
+      if parent.rangeMin() != start || parent.rangeMax() >= limit {
+        break
+      }
+      ci = parent
+    }
+    return ci
+  }
+  
+  // MARK: math
   
   /// Returns an unnormalized r3 vector from the origin through the center
   /// of the s2 cell on the sphere.
@@ -718,9 +805,9 @@ public struct CellId {
 
 }
 
-extension CellId: Equatable, CustomStringConvertible, Hashable {
+extension CellId: Equatable, CustomStringConvertible, Hashable, Comparable {
   
-  public static func ==(lhs:CellId, rhs: CellId) -> Bool {
+  public static func ==(lhs: CellId, rhs: CellId) -> Bool {
     return lhs.id == rhs.id
   }
   
@@ -735,6 +822,10 @@ extension CellId: Equatable, CustomStringConvertible, Hashable {
   
   public var hashValue: Int {
     return id.hashValue
+  }
+  
+  public static func <(lhs: CellId, rhs: CellId) -> Bool {
+    return lhs.id < rhs.id
   }
   
 }
