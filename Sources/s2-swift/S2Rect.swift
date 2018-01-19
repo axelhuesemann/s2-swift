@@ -29,9 +29,9 @@ public struct S2Rect: S2RegionType {
     lng = S1Interval(lo: lo.lng, hi: hi.lng)
   }
   
-  public init(p1: LatLng, p2: LatLng) {
-    lat = R1Interval(lo: p1.lat, hi: p2.lat)
-    lng = S1Interval(lo: p1.lng, hi: p2.lng)
+  public init(p0: LatLng, p1: LatLng) {
+    lat = R1Interval(lo: p0.lat, hi: p1.lat)
+    lng = S1Interval(lo: p0.lng, hi: p1.lng)
   }
   
   /// Constructs a rectangle containing a single point p.
@@ -317,7 +317,7 @@ public struct S2Rect: S2RegionType {
     // intersection point is contained in the interior of the edge AB and
     // also that it is contained within the given longitude interval "lng".
     // Compute the range of theta values spanned by the edge AB.
-    let abTheta = S1Interval(p1: atan2(a.v.dot(y.v), a.v.dot(x.v)), p2: atan2(b.v.dot(y.v), b.v.dot(x.v)))
+    let abTheta = S1Interval(p0: atan2(a.v.dot(y.v), a.v.dot(x.v)), p1: atan2(b.v.dot(y.v), b.v.dot(x.v)))
     if abTheta.contains(theta) {
       // Check if the intersection point is also in the given lng interval.
       let isect = x.v.mul(cosTheta).add(y.v.mul(sinTheta))
@@ -383,7 +383,7 @@ public struct S2Rect: S2RegionType {
     // latitude-longitude rectangle does not have straight edges: two edges
     // are curved, and at least one of them is concave.
     for i in 0..<vertices.count {
-      let edgeLng = S1Interval(p1: latlngs[i].lng, p2: latlngs[(i+1)&3].lng)
+      let edgeLng = S1Interval(p0: latlngs[i].lng, p1: latlngs[(i+1)&3].lng)
       if !lng.intersects(edgeLng) {
         continue
       }

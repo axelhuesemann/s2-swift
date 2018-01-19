@@ -17,6 +17,41 @@ public struct R2Point {
     self.y = y
   }
   
+  func add(_ p: R2Point) -> R2Point {
+    return R2Point(x: x + p.x, y: y + p.y)
+  }
+  
+  func sub(_ p: R2Point) -> R2Point {
+    return R2Point(x: x - p.x, y: y - p.y)
+  }
+  
+  func mul(_ value: Double) -> R2Point {
+    return R2Point(x: x * value, y: y * value)
+  }
+  
+  func ortho() -> R2Point {
+    return R2Point(x: -y, y: x)
+  }
+  
+  func dot(_ p: R2Point) -> Double {
+    return x * p.x + y * p.y
+  }
+  
+  func cross(_ p: R2Point) -> Double {
+    return x * p.x - y * p.y
+  }
+  
+  func norm() -> Double {
+    return hypot(x, y)
+  }
+  
+  func normalized() -> R2Point {
+    if x == 0 && y == 0 {
+      return self
+    }
+    return mul(1 / norm())
+  }
+
 }
 
 extension R2Point: Equatable, CustomStringConvertible, Approximatable {

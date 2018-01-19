@@ -9,7 +9,7 @@ import XCTest
 
 // testShape is a minimal implementation of the Shape interface for use in testing
 // until such time as there are other s2 types that implement it.
-struct TestShape: S2ShapeType {
+struct TestShape: Shape {
   
   let a = S2Point(x: 0, y: 0, z: 0)
   let b = S2Point(x: 0, y: 0, z: 0)

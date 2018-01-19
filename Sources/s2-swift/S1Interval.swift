@@ -22,7 +22,8 @@ public struct S1Interval: IntervalType {
   // MARK: constants
   
   static let epsilon = 1e-14
-
+  static let dblEpsilon = 2.220446049e-16
+  
   // MARK: state 
   
   let lo: S1Angle
@@ -39,9 +40,9 @@ public struct S1Interval: IntervalType {
   /// Constructs a new interval from endpoints.
   /// This function allows inverted intervals to be created.
   /// Both arguments must be in the range [-π,π].
-  public init(p1: S1Angle, p2: S1Angle) {
-    self.lo = (p1 == -.pi && p2 != .pi) ? .pi : p1
-    self.hi = (p2 == -.pi && p1 != .pi) ? .pi : p2
+  public init(p0: S1Angle, p1: S1Angle) {
+    self.lo = (p0 == -.pi && p1 != .pi) ? .pi : p0
+    self.hi = (p1 == -.pi && p0 != .pi) ? .pi : p1
   }
   
   /// Returns the empty interval.
@@ -309,9 +310,9 @@ public struct S1Interval: IntervalType {
     let l = (lo - margin).truncatingRemainder(dividingBy: 2.0 * .pi)
     let h = (hi + margin).truncatingRemainder(dividingBy: 2.0 * .pi)
     if l <= -.pi {
-      return S1Interval(p1: .pi, p2: h)
+      return S1Interval(p0: .pi, p1: h)
     }
-    return S1Interval(p1: l, p2: h)
+    return S1Interval(p0: l, p1: h)
   }
 
 }

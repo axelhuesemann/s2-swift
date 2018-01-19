@@ -25,7 +25,7 @@ public protocol IntervalType {
   associatedtype Member
   associatedtype Distance
   init(lo: Member, hi: Member)
-  init(p1: Member, p2: Member)
+  init(p0: Member, p1: Member)
   // empty, full
   static var empty: Self { get }
   static var full: Self { get }
@@ -66,20 +66,6 @@ public protocol S2RegionType  {
   /// if intersection could not be determined. It returns false if the region
   /// does not intersect.
   func intersects(_ cell: Cell) -> Bool
-}
-
-/// Defines an interface for any S2 type that needs to be indexable.
-public protocol S2ShapeType {
-  /// Returns the number of edges in this shape.
-  func numEdges() -> Int
-  /// Returns endpoints for the given edge index.
-  func edge(_ i: Int) -> (S2Point, S2Point)
-  /// Returns true if this shape has an interior.
-  /// i.e. the Shape consists of one or more closed non-intersecting loops.
-  func hasInterior() -> Bool
-  /// Returns true if this shape contains s2.Origin.
-  /// Shapes that do not have an interior will return false.
-  func containsOrigin() -> Bool
 }
 
 /// Ordering of a set of points

@@ -174,8 +174,10 @@ public struct S2Point {
   }
   
   // MARK: arithmetic
+  // Some of the below methods are convenience methods so the R3Vector does not have to be exposed all the time.
+  // Those return R3Vector because normalization into S2 is expensive and often not wanted at this point.
   
-  //
+  /// The inverse vector
   func inverse() -> S2Point {
     return S2Point(x: -x, y: -y, z: -z)
   }
@@ -185,9 +187,17 @@ public struct S2Point {
     return R3Vector(x: x + point.x, y: y + point.y, z: z + point.z)
   }
   
+  static func +(lhs: S2Point, rhs: S2Point) -> R3Vector {
+    return R3Vector(x: lhs.x + rhs.x, y: lhs.y + rhs.y, z: lhs.z + rhs.z)
+  }
+  
   // Sub returns the standard S2Point difference of v and other.
   func sub(_ point: S2Point) -> R3Vector {
     return R3Vector(x: x - point.x, y: y - point.y, z: z - point.z)
+  }
+  
+  static func -(lhs: S2Point, rhs: S2Point) -> R3Vector {
+    return R3Vector(x: lhs.x - rhs.x, y: lhs.y - rhs.y, z: lhs.z - rhs.z)
   }
   
   // Mul returns the standard scalar product of v and m.
@@ -195,9 +205,17 @@ public struct S2Point {
     return R3Vector(x: m * x, y: m * y, z: m * z)
   }
   
+  static func *(lhs: S2Point, rhs: Double) -> R3Vector {
+    return R3Vector(x: lhs.x * rhs, y: lhs.y * rhs, z: lhs.z * rhs)
+  }
+  
   // Dot returns the standard dot product of v and other.
   func dot(_ point: S2Point) -> Double {
     return x * point.x + y * point.y + z * point.z
+  }
+
+  static func *(lhs: S2Point, rhs: S2Point) -> Double {
+    return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
   }
   
   // Cross returns the standard cross product of v and other.
@@ -585,7 +603,7 @@ public struct S2Point {
   
 }
 
-extension S2Point: Equatable, CustomStringConvertible, Approximatable, Hashable {
+extension S2Point: Equatable, CustomStringConvertible, Approximatable, Hashable, Comparable {
   
   public static func ==(lhs: S2Point, rhs: S2Point) -> Bool {
     return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z
@@ -606,4 +624,36 @@ extension S2Point: Equatable, CustomStringConvertible, Approximatable, Hashable 
     return x.hashValue ^ y.hashValue ^ z.hashValue
   }
   
+  /// This is a lexicographic comparison. Kinda a hack, makes them sortable
+  public static func <(lhs: S2Point, rhs: S2Point) -> Bool {
+    if lhs.x != rhs.x {
+      return lhs.x < rhs.x
+    }
+    if lhs.y != rhs.y {
+      return lhs.y < rhs.y
+    }
+    return lhs.z < rhs.z
+  }
+  
+}
+
+/// A Shape representing a set of Points. Each point
+/// is represented as a degenerate point with the same starting and ending
+/// vertices.
+/// This type is useful for adding a collection of points to an ShapeIndex.
+struct S2PointVector {
+  var points: [S2Point]
+}
+
+extension S2PointVector: Shape {
+  func numEdges() -> Int { return points.count }
+  func edge(_ i: Int) -> Edge { return Edge(v0: points[i], v1: points[i]) }
+  func hasInterior() -> Bool { return false }
+  func containsOrigin() -> Bool { return false }
+  func referencePoint() -> ReferencePoint { return ReferencePoint(origin: true, contained: false) }
+  func numChains() -> Int { return points.count }
+  func chain(_ i: Int) -> Chain { return Chain(start: i, length: 1) }
+  func chainEdge(chainId i: Int, offset j: Int) -> Edge { return Edge(v0: points[i], v1: points[j]) }
+  func chainPosition(_ e: Int) -> ChainPosition { return ChainPosition(chainId: e, offset: 0) }
+  func dimension() -> ShapeDimension { return .pointGeometry }
 }

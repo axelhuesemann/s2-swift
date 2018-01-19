@@ -321,6 +321,26 @@ public struct S2Cap: S2RegionType {
     return S2Rect(lat: lat, lng: lng)
   }
   
+  /// Computes a covering of the Cap. In general the covering
+  /// consists of at most 4 cells except for very large caps, which may need
+  /// up to 6 cells. The output is not sorted.
+  func cellUnionBound() -> CellUnion {
+    // TODO(roberts): The covering could be made quite a bit tighter by mapping
+    // the cap to a rectangle in (i,j)-space and finding a covering for that.
+    // Find the maximum level such that the cap contains at most one cell vertex
+    // and such that CellID.AppendVertexNeighbors() can be called.
+    let level = S2CellMetric.minWidth.maxLevel(radius()) - 1
+    // If level < 0, more than three face cells are required.
+    if level < 0 {
+      let cellIds = (0..<6).map { CellId(face: $0) }
+      return CellUnion(cellIds: cellIds)
+    }
+    // The covering consists of the 4 cells at the given level that share the
+    // cell vertex that is closest to the cap center.
+    let cellIds = CellId(point: center).vertexNeighbors(level)
+    return CellUnion(cellIds: cellIds)
+  }
+  
   /// Increases the cap if necessary to include the given point. If this cap is empty,
   /// then the center is set to the point with a zero height. p must be unit-length.
   public func add(_ point: S2Point) -> S2Cap {

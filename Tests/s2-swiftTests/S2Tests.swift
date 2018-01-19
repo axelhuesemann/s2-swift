@@ -234,8 +234,8 @@ func randomRect() -> S2Rect {
   let lat1 = random(lo: -.pi / 2.0, hi: .pi / 2.0)
   let lng0 = random(lo: -.pi, hi: .pi)
   let lng1 = random(lo: -.pi, hi: .pi)
-  let latInterval = R1Interval(p1: lat0, p2: lat1)
-  let lngInterval = S1Interval(p1: lng0, p2: lng1)
+  let latInterval = R1Interval(p0: lat0, p1: lat1)
+  let lngInterval = S1Interval(p0: lng0, p1: lng1)
   return S2Rect(lat: latInterval, lng: lngInterval)
 }
 

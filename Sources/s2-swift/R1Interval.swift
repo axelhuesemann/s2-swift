@@ -33,11 +33,11 @@ public struct R1Interval: IntervalType {
   // Convenience method to construct the minimal interval containing the two
   // given points. This is equivalent to starting with an empty interval and
   // calling AddPoint() twice, but it is more efficient.
-  public init(p1: Double, p2: Double) {
-    if p1 <= p2 {
-      self.init(lo: p1, hi: p2)
+  public init(p0: Double, p1: Double) {
+    if p0 <= p1 {
+      self.init(lo: p0, hi: p1)
     } else {
-      self.init(lo: p2, hi: p1)
+      self.init(lo: p1, hi: p0)
     }
   }
   

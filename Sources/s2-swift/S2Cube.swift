@@ -176,6 +176,27 @@ struct S2Cube {
     default: return S2Point(x: p.y, y: p.x, z: -p.z)
     }
   }
+
+  // MARK: move this somewhere else? has more to do with cells
+  
+  // faceSiTiToXYZ transforms the (si, ti) coordinates to a (not necessarily
+  // unit length) Point on the given face.
+  static func faceSiTiToXYZ(face: Int, si: UInt32, ti: UInt32) -> S2Point {
+    let r3 = faceUVToXYZ(face: face, u: stToUV(siTiToST(si: si)), v: stToUV(siTiToST(si: ti)))
+    return S2Point(raw: r3)
+  }
+  
+  static let maxSiTi = CellId.maxSize << 1
+  
+  // siTiToST converts an si- or ti-value to the corresponding s- or t-value.
+  // Value is capped at 1.0 because there is no DCHECK in Go.
+  static func siTiToST(si: UInt32) -> Double {
+    if si > maxSiTi {
+      return 1.0
+    }
+    return Double(si) / Double(maxSiTi)
+  }
+
   
   // MARK: u and v normals
   
@@ -214,8 +235,8 @@ struct S2Cube {
   
   // MARK: face axes
   
-  // faceUVWAxes are the U, V, and W axes for each face.
-  static var faceUVWAxes = [
+  /// The U, V, and W axes for each face.
+  static let faceUVWAxes = [
     [S2Point(x: 0, y: +1, z: 0), S2Point(x: 0, y: 0, z: +1), S2Point(x: +1, y: 0, z: 0)],
     [S2Point(x: -1, y: 0, z: 0), S2Point(x: 0, y: 0, z: +1), S2Point(x: 0, y: +1, z: 0)],
     [S2Point(x: -1, y: 0, z: 0), S2Point(x: 0, y: -1, z: 0), S2Point(x: 0, y: 0, z: +1)],
@@ -223,22 +244,37 @@ struct S2Cube {
     [S2Point(x: 0, y: 0, z: -1), S2Point(x: +1, y: 0, z: 0), S2Point(x: 0, y: -1, z: 0)],
     [S2Point(x: 0, y: +1, z: 0), S2Point(x: +1, y: 0, z: 0), S2Point(x: 0, y: 0, z: -1)]]
   
-  // uvwAxis returns the given axis of the given face.
+  /// Precomputed neighbors of each face.
+  static let faceUVWFaces = [
+    [[4, 1], [5, 2], [3, 0]],
+    [[0, 3], [5, 2], [4, 1]],
+    [[0, 3], [1, 4], [5, 2]],
+    [[2, 5], [1, 4], [0, 3]],
+    [[2, 5], [3, 0], [1, 4]],
+    [[4, 1], [3, 0], [2, 5]]]
+  
+  /// Returns the face in the (u,v,w) coordinate system on the given axis
+  /// in the given direction.
+  static func uvwFace(face: Int, axis: Int, direction: Int) -> Int {
+    return faceUVWFaces[face][axis][direction]
+  }
+  
+  /// Returns the given axis of the given face.
   static func uvwAxis(face: Int, axis: Int) -> S2Point {
     return faceUVWAxes[face][axis]
   }
   
-  // uAxis returns the u-axis for the given face.
+  /// Returns the u-axis for the given face.
   static func uAxis(face: Int) -> S2Point {
     return uvwAxis(face: face, axis: 0)
   }
   
-  // vAxis returns the v-axis for the given face.
+  /// Returns the v-axis for the given face.
   static func vAxis(face: Int) -> S2Point {
     return uvwAxis(face: face, axis: 1)
   }
   
-  // Return the unit-length normal for the given face.
+  // Returns the unit-length normal for the given face.
   static func unitNorm(face: Int) -> S2Point {
     return uvwAxis(face: face, axis: 2)
   }

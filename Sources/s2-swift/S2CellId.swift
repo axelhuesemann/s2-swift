@@ -702,11 +702,18 @@ public struct CellId {
 
   // MARK: Hilbert curve 
   
+  static let ijToPos = [
+    [0, 1, 3, 2], // canonical order
+    [0, 3, 1, 2], // axes swapped
+    [2, 3, 1, 0], // bits inverted
+    [2, 1, 3, 0]] // swapped & inverted
+
   static let posToIJ = [
     [0, 1, 3, 2], // canonical order:    (0,0), (0,1), (1,1), (1,0)
     [0, 2, 3, 1], // axes swapped:       (0,0), (1,0), (1,1), (0,1)
     [3, 2, 0, 1], // bits inverted:      (1,1), (1,0), (0,0), (0,1)
     [3, 1, 0, 2]] // swapped & inverted: (1,1), (0,1), (0,0), (1,0)
+
   static let posToOrientation = [CellId.swapMask, 0, 0, invertMask | swapMask]
   static var lookupIJ = [Int](repeating: 0, count: 1 << (2*CellId.lookupBits + 2))
   static var lookupPos = [Int](repeating: 0, count: 1 << (2*CellId.lookupBits + 2))

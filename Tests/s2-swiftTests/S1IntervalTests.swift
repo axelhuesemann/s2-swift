@@ -12,32 +12,32 @@ class S1IntervalTests: XCTestCase {
   let empty = S1Interval.empty
   let full = S1Interval.full
   // Single-point intervals:
-  let zero = S1Interval(p1: 0, p2: 0)
-  let pi2 = S1Interval(p1: .pi/2, p2: .pi/2)
-  let pi = S1Interval(p1: .pi, p2: .pi)
-  let mipi = S1Interval(p1: -.pi, p2: -.pi) // same as pi after normalization
-  let mipi2 = S1Interval(p1: -.pi/2, p2: -.pi/2)
+  let zero = S1Interval(p0: 0, p1: 0)
+  let pi2 = S1Interval(p0: .pi/2, p1: .pi/2)
+  let pi = S1Interval(p0: .pi, p1: .pi)
+  let mipi = S1Interval(p0: -.pi, p1: -.pi) // same as pi after normalization
+  let mipi2 = S1Interval(p0: -.pi/2, p1: -.pi/2)
   // Single quadrants:
-  let quad1 = S1Interval(p1: 0, p2: .pi/2)
-  let quad2 = S1Interval(p1: .pi/2, p2: -.pi) // equivalent to (pi/2, pi)
-  let quad3 = S1Interval(p1: .pi, p2: -.pi/2)
-  let quad4 = S1Interval(p1: -.pi/2, p2: 0)
+  let quad1 = S1Interval(p0: 0, p1: .pi/2)
+  let quad2 = S1Interval(p0: .pi/2, p1: -.pi) // equivalent to (pi/2, pi)
+  let quad3 = S1Interval(p0: .pi, p1: -.pi/2)
+  let quad4 = S1Interval(p0: -.pi/2, p1: 0)
   // Quadrant pairs:
-  let quad12 = S1Interval(p1: 0, p2: -.pi)
-  let quad23 = S1Interval(p1: .pi/2, p2: -.pi/2)
-  let quad34 = S1Interval(p1: -.pi, p2: 0)
-  let quad41 = S1Interval(p1: -.pi/2, p2: .pi/2)
+  let quad12 = S1Interval(p0: 0, p1: -.pi)
+  let quad23 = S1Interval(p0: .pi/2, p1: -.pi/2)
+  let quad34 = S1Interval(p0: -.pi, p1: 0)
+  let quad41 = S1Interval(p0: -.pi/2, p1: .pi/2)
   // Quadrant triples:
-  let quad123 = S1Interval(p1: 0, p2: -.pi/2)
-  let quad234 = S1Interval(p1: .pi/2, p2: 0)
-  let quad341 = S1Interval(p1: .pi, p2: .pi/2)
-  let quad412 = S1Interval(p1: -.pi/2, p2: -.pi)
+  let quad123 = S1Interval(p0: 0, p1: -.pi/2)
+  let quad234 = S1Interval(p0: .pi/2, p1: 0)
+  let quad341 = S1Interval(p0: .pi, p1: .pi/2)
+  let quad412 = S1Interval(p0: -.pi/2, p1: -.pi)
   // Small intervals around the midpoints between quadrants,
   // such that the center of each interval is offset slightly CCW from the midpoint.
-  let mid12 = S1Interval(p1: .pi/2-0.01, p2: .pi/2+0.02)
-  let mid23 = S1Interval(p1: .pi-0.01, p2: -.pi+0.02)
-  let mid34 = S1Interval(p1: -.pi/2-0.01, p2: -.pi/2+0.02)
-  let mid41 = S1Interval(p1: -0.01, p2: 0.02)
+  let mid12 = S1Interval(p0: .pi/2-0.01, p1: .pi/2+0.02)
+  let mid23 = S1Interval(p0: .pi-0.01, p1: -.pi+0.02)
+  let mid34 = S1Interval(p0: -.pi/2-0.01, p1: -.pi/2+0.02)
+  let mid41 = S1Interval(p0: -0.01, p1: 0.02)
 
   override func setUp() {
     super.setUp()
@@ -67,9 +67,9 @@ class S1IntervalTests: XCTestCase {
   
   func testCenter() {
     XCTAssertEqual(quad12.center, .pi / 2, accuracy: 1e-15)
-    XCTAssertEqual(S1Interval(p1: 3.1, p2: 2.9).center, 3 - .pi, accuracy: 1e-15)
-    XCTAssertEqual(S1Interval(p1: -2.9, p2: -3.1).center, .pi - 3, accuracy: 1e-15)
-    XCTAssertEqual(S1Interval(p1: 2.1, p2: -2.1).center, .pi, accuracy: 1e-15)
+    XCTAssertEqual(S1Interval(p0: 3.1, p1: 2.9).center, 3 - .pi, accuracy: 1e-15)
+    XCTAssertEqual(S1Interval(p0: -2.9, p1: -3.1).center, .pi - 3, accuracy: 1e-15)
+    XCTAssertEqual(S1Interval(p0: 2.1, p1: -2.1).center, .pi, accuracy: 1e-15)
     XCTAssertEqual(pi.center, .pi, accuracy: 1e-15)
     XCTAssertEqual(mipi.center, .pi, accuracy: 1e-15)
     XCTAssertEqual(quad23.center, .pi, accuracy: 1e-15)
