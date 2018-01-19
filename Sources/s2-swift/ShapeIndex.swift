@@ -590,11 +590,14 @@ public class ShapeIndex {
   var pendingRemovals: [RemovedShape]
   
   init() {
-    maxEdgesPerCell = 10
     shapes = [:]
+    maxEdgesPerCell = 10
+    nextId = -1
     cellMap = [:]
     cells = []
     status = .fresh
+    pendingAdditionsPos = -1
+    pendingRemovals = []
   }
 
 }
@@ -658,20 +661,24 @@ extension ShapeIndex {
     status = .stale
 //    return nextId - 1
   }
-  
-  /// Removes the given shape from the index.
-  func remove(shape: Shape) {
+
+  func find(shape: Shape) -> Int32? {
     // The index updates itself lazily because it is much more efficient to
     // process additions and removals in batches.
     // Lookup the id of this shape in the index.
-    var id = Int32(-1)
     for (k, v) in shapes {
-      if v == shape {
-        id = k
-      }
+      // TODO !!! figure out equality
+//      if v == shape {
+//        return k
+//      }
     }
+    return nil
+  }
+  
+  /// Removes the given shape from the index.
+  func remove(shape: Shape) {
     // If the shape wasn't found, it's already been removed or was not in the index.
-    if shapes[id] == nil {
+    guard let id = find(shape: shape), shapes[id] != nil else {
       return
     }
     // Remove the shape from the shapes map.
@@ -925,14 +932,13 @@ extension ShapeIndex {
       // TODO(roberts): If it turns out to have memory problems when there
       // are 10M+ edges in the index, look into pre-allocating space so we
       // are not always appending.
-      var x = [ClippedEdge]()
+      let x = [ClippedEdge]()
       var childEdges = [[x, x], [x, x]] // [i][j]
       // Compute the middle of the padded cell, defined as the rectangle in
       // (u,v)-space that belongs to all four (padded) children. By comparing
       // against the four boundaries of middle we can determine which children
       // each edge needs to be propagated to.
-      pcell.computeMiddle()
-      guard let middle = pcell.middle else { return }
+      let middle = pcell.middle
       // Build up a vector edges to be passed to each child cell. The (i,j)
       // directions are left (i=0), right (i=1), lower (j=0), and upper (j=1).
       // Note that the vast majority of edges are propagated to a single child.
@@ -957,20 +963,16 @@ extension ShapeIndex {
           }
         } else if edge.bound.y.hi <= middle.y.lo {
           // Edge is entirely contained in the two lower children.
-          if let a = clipUBound(edge: edge, uEnd: 1, u: middle.x.hi) {
-            childEdges[0][0].append(a)
-          }
-          if let b = clipUBound(edge: edge, uEnd: 0, u: middle.x.lo) {
-            childEdges[1][0].append(b)
-          }
+          let a = clipUBound(edge: edge, uEnd: 1, u: middle.x.hi)
+          childEdges[0][0].append(a)
+          let b = clipUBound(edge: edge, uEnd: 0, u: middle.x.lo)
+          childEdges[1][0].append(b)
         } else if edge.bound.y.lo >= middle.y.hi {
           // Edge is entirely contained in the two upper children.
-          if let a = clipUBound(edge: edge, uEnd: 1, u: middle.x.hi) {
-            childEdges[0][1].append(a)
-          }
-          if let b = clipUBound(edge: edge, uEnd: 0, u: middle.x.lo) {
-            childEdges[1][1].append(b)
-          }
+          let a = clipUBound(edge: edge, uEnd: 1, u: middle.x.hi)
+          childEdges[0][1].append(a)
+          let b = clipUBound(edge: edge, uEnd: 0, u: middle.x.lo)
+          childEdges[1][1].append(b)
         } else {
           // The edge bound spans all four children. The edge
           // itself intersects either three or four padded children.
@@ -1143,7 +1145,7 @@ extension ShapeIndex {
     // Determine which endpoint of the v-axis bound to update. If the edge
     // slope is positive we update the same endpoint, otherwise we update the
     // opposite endpoint.
-    var vEnd: Int
+    var vEnd = 0
     let positiveSlope = (e.a.x > e.b.x) == (e.a.y > e.b.y)
     if (uEnd == 1) == positiveSlope {
       vEnd = 1
@@ -1174,7 +1176,7 @@ extension ShapeIndex {
     // Determine which endpoint of the v-axis bound to update. If the edge
     // slope is positive we update the same endpoint, otherwise we update the
     // opposite endpoint.
-    var uEnd: Int
+    var uEnd = 0
     let positiveSlope = (e.a.x > e.b.x) == (e.a.y > e.b.y)
     if (vEnd == 1) == positiveSlope {
       uEnd = 1
@@ -1237,7 +1239,7 @@ extension ShapeIndex {
     // this cell and its children.
     t.saveAndClearStateBefore(limitShapeId: pendingAdditionsPos)
     // Create a faceEdge for each edge in this cell that isn't being removed.
-    var faceEdges: [FaceEdge]
+    var faceEdges: [FaceEdge] = []
     var trackerMoved = false
     let cell = iter.indexCell()!
     for clipped in cell.shapes {
@@ -1280,7 +1282,7 @@ extension ShapeIndex {
       }
     }
     // Now create a clippedEdge for each faceEdge, and put them in "new_edges".
-    var newEdges: [ClippedEdge]
+    var newEdges: [ClippedEdge] = []
     for faceEdge in faceEdges {
       let clipped = ClippedEdge(faceEdge: faceEdge, bound: clippedEdgeBound(a: faceEdge.a, b: faceEdge.b, clip: p.bound))
       newEdges.append(clipped)

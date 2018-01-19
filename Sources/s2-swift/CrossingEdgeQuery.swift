@@ -9,7 +9,7 @@ import Foundation
 
 
 /// Stores a sorted set of edge ids for each shape.
-typealias EdgeMap = [Shape: Int]
+//typealias EdgeMap = [Shape: Int]
 
 /// CrossingEdgeQuery is used to find the Edge IDs of Shapes that are crossed by
 /// a given edge(s).
@@ -26,7 +26,7 @@ struct CrossingEdgeQuery {
   var b: R2Point?
   var iter: ShapeIndexIterator
   // candidate cells generated when finding crossings.
-  var cells: [ShapeIndexCell]
+  var cells: [ShapeIndexCell] = []
 }
 
 extension CrossingEdgeQuery {
@@ -70,33 +70,33 @@ extension CrossingEdgeQuery {
   //
   // The edges are returned as a mapping from shape to the edges of that shape
   // that intersect AB. Every returned shape has at least one crossing edge.
-  mutating func crossingsEdgeMap(a: S2Point, b: S2Point, crossType: CrossingType) -> EdgeMap? {
-    var edgeMap = candidatesEdgeMap(a: a, b: b)
-    if edgeMap.count == 0 {
-      return nil
-    }
-    var crosser = EdgeCrosser(a: a, b: b)
-    for (shape, edges) in edgeMap {
-      var out = 0
-      let n = edges.count
-      for input in 0..<n {
-        let edge = shape.edge(edges[input])
-        let sign = crosser.crossingSign(c: edge.v0, d: edge.v1)
-        if (crossType == .all && (sign == .maybeCross || sign == .cross)) || (crossType != .all && sign == .cross) {
-          edgeMap[shape][out] = edges[input]
-          out += 1
-        }
-      }
-      if out == 0 {
-        edgeMap.removeValue(forKey: shape)
-      } else {
-        if out < n {
-          edgeMap[shape] = Array(edgeMap[shape][..<out])
-        }
-      }
-    }
-    return edgeMap
-  }
+//  mutating func crossingsEdgeMap(a: S2Point, b: S2Point, crossType: CrossingType) -> EdgeMap? {
+//    var edgeMap = candidatesEdgeMap(a: a, b: b)
+//    if edgeMap.count == 0 {
+//      return nil
+//    }
+//    var crosser = EdgeCrosser(a: a, b: b)
+//    for (shape, edges) in edgeMap {
+//      var out = 0
+//      let n = edges.count
+//      for input in 0..<n {
+//        let edge = shape.edge(edges[input])
+//        let sign = crosser.crossingSign(c: edge.v0, d: edge.v1)
+//        if (crossType == .all && (sign == .maybeCross || sign == .cross)) || (crossType != .all && sign == .cross) {
+//          edgeMap[shape][out] = edges[input]
+//          out += 1
+//        }
+//      }
+//      if out == 0 {
+//        edgeMap.removeValue(forKey: shape)
+//      } else {
+//        if out < n {
+//          edgeMap[shape] = Array(edgeMap[shape][..<out])
+//        }
+//      }
+//    }
+//    return edgeMap
+//  }
 
   // candidates returns a superset of the edges of the given shape that intersect
   // the edge AB.
@@ -116,13 +116,8 @@ extension CrossingEdgeQuery {
     // Gather all the edges that intersect those cells and sort them.
     // TODO(roberts): Shapes don't track their ID, so we need to range over
     // the index to find the ID manually.
-    var shapeId: Int32
-    for (k, v) in index.shapes {
-      if v == shape {
-        shapeId = k
-      }
-    }
-    var edges: [Int]
+    guard let shapeId = index.find(shape: shape) else { return [] }
+    var edges: [Int] = []
     for cell in cells {
       guard let clipped = cell.find(shapeId: shapeId) else {
         continue
@@ -131,25 +126,27 @@ extension CrossingEdgeQuery {
         edges.append(j)
       }
     }
-    if cells.count > 1 {
-      edges = CrossingEdgeQuery.uniqueInts(input: edges)
-    }
-    return edges
+    return CrossingEdgeQuery.uniqueInts(input: edges)
   }
 
   // uniqueInts returns the sorted uniqued values from the given input.
   static func uniqueInts(input: [Int]) -> [Int] {
-    var edges = [Int]()
-    var m = [Int: Bool]()
-    for i in input {
-      if m[i] != nil {
-        continue
-      }
-      m[i] = true
-      edges.append(i)
+    if input.count <= 1 {
+      return input
     }
-    edges.sort()
-    return edges
+    let edges = Set<Int>(input)
+    return Array(edges)
+//    var edges = [Int]()
+//    var m = [Int: Bool]()
+//    for i in input {
+//      if m[i] != nil {
+//        continue
+//      }
+//      m[i] = true
+//      edges.append(i)
+//    }
+//    edges.sort()
+//    return edges
   }
 
   // candidatesEdgeMap returns a map from shapes to the superse of edges for that
@@ -157,41 +154,41 @@ extension CrossingEdgeQuery {
   //
   // CAVEAT: This method may return shapes that have an empty set of candidate edges.
   // However the return value is non-empty only if at least one shape has a candidate edge.
-  mutating func candidatesEdgeMap(a: S2Point, b: S2Point) -> EdgeMap {
-    var edgeMap: EdgeMap = [:]
-    // If there are only a few edges then it's faster to use brute force. We
-    // only bother with this optimization when there is a single shape.
-    if let shape = index.shape(id: 0) {
-      // Typically this method is called many times, so it is worth checking
-      // whether the edge map is empty or already consists of a single entry for
-      // this shape, and skip clearing edge map in that case.
-      // Note that we leave the edge map non-empty even if there are no candidates
-      // (i.e., there is a single entry with an empty set of edges).
-      edgeMap[shape] = candidates(a, b, shape)
-      return edgeMap
-    }
-    // Compute the set of index cells intersected by the query edge.
-    getCellsForEdge(a: a, b: b)
-    if cells.count == 0 {
-      return edgeMap
-    }
-    // Gather all the edges that intersect those cells and sort them.
-    for cell in cells {
-      for clipped in cell.shapes {
-        if let s = index.shape(id: clipped.shapeId) {
-          for j in 0..<clipped.numEdges() {
-            edgeMap[s].append(clipped.edges[j])
-          }
-        }
-      }
-    }
-    if cells.count > 1 {
-      for (s, edges) in edgeMap {
-        edgeMap[s] = uniqueInts(edges)
-      }
-    }
-    return edgeMap
-  }
+//  mutating func candidatesEdgeMap(a: S2Point, b: S2Point) -> EdgeMap {
+//    var edgeMap: EdgeMap = [:]
+//    // If there are only a few edges then it's faster to use brute force. We
+//    // only bother with this optimization when there is a single shape.
+//    if let shape = index.shape(id: 0) {
+//      // Typically this method is called many times, so it is worth checking
+//      // whether the edge map is empty or already consists of a single entry for
+//      // this shape, and skip clearing edge map in that case.
+//      // Note that we leave the edge map non-empty even if there are no candidates
+//      // (i.e., there is a single entry with an empty set of edges).
+//      edgeMap[shape] = candidates(a, b, shape)
+//      return edgeMap
+//    }
+//    // Compute the set of index cells intersected by the query edge.
+//    getCellsForEdge(a: a, b: b)
+//    if cells.count == 0 {
+//      return edgeMap
+//    }
+//    // Gather all the edges that intersect those cells and sort them.
+//    for cell in cells {
+//      for clipped in cell.shapes {
+//        if let s = index.shape(id: clipped.shapeId) {
+//          for j in 0..<clipped.numEdges() {
+//            edgeMap[s].append(clipped.edges[j])
+//          }
+//        }
+//      }
+//    }
+//    if cells.count > 1 {
+//      for (s, edges) in edgeMap {
+//        edgeMap[s] = uniqueInts(edges)
+//      }
+//    }
+//    return edgeMap
+//  }
   
   // getCells returns the set of ShapeIndexCells that might contain edges intersecting
   // the edge AB in the given cell root. This method is used primarly by loop and shapeutil.
@@ -261,8 +258,7 @@ extension CrossingEdgeQuery {
       return
     }
     // Otherwise, split the edge among the four children of pcell.
-    pcell.computeMiddle()
-    guard let center = pcell.middle?.lo else { return }
+    let center = pcell.middle.lo
     if edgeBound.x.hi < center.x {
       // Edge is entirely contained in the two left children.
       clipVAxis(edgeBound: edgeBound, center: center.y, i: 0, pcell: pcell)
@@ -295,7 +291,6 @@ extension CrossingEdgeQuery {
   // or both children, and call c.computeCellsIntersected recursively on those children.
   // The center is the v-coordinate at the center of pcell.
   mutating func clipVAxis(edgeBound: R2Rect, center: Double, i: Int, pcell: PaddedCell) {
-    pcell.computeMiddle()
     if edgeBound.y.hi < center {
       // Edge is entirely contained in the lower child.
       computeCellsIntersected(pcell: PaddedCell(parent: pcell, i: i, j: 0), edgeBound: edgeBound)

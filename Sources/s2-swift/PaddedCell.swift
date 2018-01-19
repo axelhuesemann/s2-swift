@@ -16,7 +16,7 @@ struct PaddedCell {
   let id: CellId
   let padding: Double
   let bound: R2Rect
-  var middle: R2Rect? // A rect in (u, v)-space that belongs to all four children.
+  let middle: R2Rect // A rect in (u, v)-space that belongs to all four children.
   let iLo: Int
   let jLo: Int     // Minimum (i,j)-coordinates of this cell before padding
   let orientation: Int     // Hilbert curve orientation of this cell.
@@ -43,10 +43,12 @@ extension PaddedCell {
       level = id.level()
       let bound = CellId.ijLevelToBoundUV(i: iLo, j: jLo, level: level)
       self.bound = bound // .expanded(margin: padding)
-      middle = nil
       let ijSize = CellId.sizeIJ(level)
       self.iLo = iLo & -ijSize
       self.jLo = jLo & -ijSize
+      let u = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * self.iLo + ijSize)))
+      let v = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * self.jLo + ijSize)))
+      middle = R2Rect(x: R1Interval(lo: u - padding, hi: u + padding), y: R1Interval(lo: v - padding, hi: v + padding))
       self.orientation = orientation
     }
   }
@@ -63,19 +65,23 @@ extension PaddedCell {
     let pbound = parent.bound
     orientation = parent.orientation ^ CellId.posToOrientation[pos]
     level = parent.level + 1
-    middle = nil
     let ijSize = CellId.sizeIJ(level)
     iLo = parent.iLo + i * ijSize
     jLo = parent.jLo + j * ijSize
+    // We could compute middle lazily because it is not needed the majority of the
+    // time (i.e., for cells where the recursion terminates).
+    let u = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * iLo + ijSize)))
+    let v = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * jLo + ijSize)))
+    middle = R2Rect(x: R1Interval(lo: u - padding, hi: u + padding), y: R1Interval(lo: v - padding, hi: v + padding))
     // For each child, one corner of the bound is taken directly from the parent
     // while the diagonally opposite corner is taken from middle().
-    guard let pmiddle = parent.middle else {
-      fatalError("parent cell not precomputed")
-    }
+    let pmiddle = parent.middle
     let x = R1Interval(lo: (i == 1) ? pmiddle.x.lo : pbound.x.lo, hi: (i == 1) ? pbound.x.hi : pmiddle.x.hi)
     let y = R1Interval(lo: (j == 1) ? pmiddle.y.lo : pbound.x.lo, hi: (j == 1) ? pbound.y.hi : pmiddle.y.hi)
     bound = R2Rect(x: x, y: y)
   }
+  
+  // MARK:
   
   /// Returns the center of this cell.
   func center() -> S2Point {
@@ -83,21 +89,6 @@ extension PaddedCell {
     let si = uint32(2 * iLo + ijSize)
     let ti = uint32(2 * jLo + ijSize)
     return S2Cube.faceSiTiToXYZ(face: id.face(), si: si, ti: ti)
-  }
-  
-  /// Returns the rectangle in the middle of this cell that belongs to
-  /// all four of its children in (u,v)-space.
-  mutating func computeMiddle() -> R2Rect {
-    // We compute this field lazily because it is not needed the majority of the
-    // time (i.e., for cells where the recursion terminates).
-    if let middle = middle {
-      return middle
-    }
-    let ijSize = CellId.sizeIJ(level)
-    let u = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * iLo + ijSize)))
-    let v = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * jLo + ijSize)))
-    middle = R2Rect(x: R1Interval(lo: u - padding, hi: u + padding), y: R1Interval(lo: v - padding, hi: v + padding))
-    return middle!
   }
   
   /// Returns the (i,j) coordinates for the child cell at the given traversal

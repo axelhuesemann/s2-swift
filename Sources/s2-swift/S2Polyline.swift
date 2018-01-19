@@ -62,7 +62,7 @@ public struct S2Polyline: Shape, S2RegionType {
   }
   
   /// Returns the j-th edge of the i-th edge Chain.
-  func ChainEdge(chainId: Int, offset: Int) -> Edge {
+  public func chainEdge(chainId: Int, offset: Int) -> Edge {
     return Edge(v0: points[offset], v1: points[offset+1])
   }
   
@@ -114,7 +114,7 @@ public struct S2Polyline: Shape, S2RegionType {
   }
   
   /// Computes a covering of the Polyline.
-  func cellUnionBound() -> [CellId] {
+  func cellUnionBound() -> CellUnion {
     return capBound().cellUnionBound()
   }
   
@@ -171,8 +171,8 @@ public struct S2Polyline: Shape, S2RegionType {
   }
   
   /// Returns endpoints for the given edge index.
-  public func edge(_ i: Int) -> (S2Point, S2Point) {
-    return (points[i], points[i+1])
+  public func edge(_ i: Int) -> Edge {
+    return Edge(v0:points[i], v1: points[i+1])
   }
   
   /// Returns false as Polylines are not closed.
@@ -214,7 +214,7 @@ public struct S2Polyline: Shape, S2RegionType {
     // and the distance to the last vertex (which must be
     // non-decreasing).
     var currentWedge = S1Interval.full
-    var lastDistance: S1Angle
+    var lastDistance: S1Angle = 0
     for index in 1..<points.count {
       let candidate = points[index]
       let distance = origin.distance(candidate)
