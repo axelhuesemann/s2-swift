@@ -342,7 +342,7 @@ public struct S2Rect: S2RegionType {
     // they are straight lines on the sphere (geodesics).
     let c = LatLng(lat: lat.lo, lng: lng).toPoint()
     let d = LatLng(lat: lat.hi, lng: lng).toPoint()
-    return simpleCrossing(a, b: b, c: c, d: d)
+    return EdgeCrosser.simpleCrossing(a: a, b: b, c: c, d: d)
   }
 
   /// Reports whether this rectangle intersects the given cell. This is an

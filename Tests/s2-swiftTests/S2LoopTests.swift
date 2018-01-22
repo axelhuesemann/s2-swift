@@ -274,9 +274,9 @@ class S2LoopTests: XCTestCase {
       (loop: skinnyChevron, edge: 2, wantA: parsePoint("0:1e-320"), wantB: parsePoint("1e-320:80")),
       (loop: skinnyChevron, edge: 3, wantA: parsePoint("1e-320:80"), wantB: parsePoint("0:0"))]
     for (loop, edge, wantA, wantB) in tests {
-      let (a, b) = loop.edge(edge)
-      XCTAssert(pointsApproxEquals(a: a, b: wantA, epsilon: epsilon))
-      XCTAssert(pointsApproxEquals(a: b, b: wantB, epsilon: epsilon))
+      let e = loop.edge(edge)
+      XCTAssert(pointsApproxEquals(a: e.v0, b: wantA, epsilon: epsilon))
+      XCTAssert(pointsApproxEquals(a: e.v1, b: wantB, epsilon: epsilon))
     }
   }
 

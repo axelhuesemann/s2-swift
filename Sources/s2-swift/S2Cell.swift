@@ -18,35 +18,35 @@ public struct Cell: S2RegionType {
   //
   let face: UInt8
   let level: UInt8
-//  let orientation: UInt8
+  let orientation: UInt8
   let id: CellId
   let uv: R2Rect
 
   // MARK: inits / factory
   
-//  init(face: UInt8, level: UInt8, orientation: UInt8, id: CellId, uv: R2Rect) {
-//  face: UInt8
-//  let level: UInt8
-//  let orientation: UInt8
-//  let id: CellId
-//  let uv: R2Rect
-//  }
+  private init(face: UInt8, level: UInt8, orientation: UInt8, id: CellId, uv: R2Rect) {
+    self.face = face
+    self.level = level
+    self.orientation = orientation
+    self.id = id
+    self.uv = uv
+  }
   
-  init(id: CellId) {
+  public init(id: CellId) {
     self.id = id
     level = UInt8(id.level())
-    let (f, i, j, _) = id.faceIJOrientation()
+    let (f, i, j, o) = id.faceIJOrientation()
     face = UInt8(f)
-//    orientation = UInt8(o)
+    orientation = UInt8(o)
     uv = CellId.ijLevelToBoundUV(i: i, j: j, level: Int(level))
   }
 
-  init(point: S2Point) {
+  public init(point: S2Point) {
     let cellId = CellId(point: point)
     self.init(id: cellId)
   }
 
-  init(latLng: LatLng) {
+  public init(latLng: LatLng) {
     let cellId = CellId(latLng: latLng)
     self.init(id: cellId)
   }
@@ -65,13 +65,30 @@ public struct Cell: S2RegionType {
     return CellId.sizeIJ(Int(level))
   }
 
+  /// Returns the edge length of this cell in (s,t)-space.
+  func sizeST() -> Double {
+    return id.sizeST(level: Int(level))
+  }
+  
+  /// Returns the bounds of this cell in (u,v)-space.
+  func boundUV() -> R2Rect {
+    return uv
+  }
+
+  /// Center returns the direction vector corresponding to the center in
+  /// (s,t)-space of the given cell. This is the point at which the cell is
+  /// divided into four subcells; it is not necessarily the centroid of the
+  /// cell in (u,v)-space or (x,y,z)-space
+  func center() -> S2Point {
+    return S2Point(raw: id.rawPoint())
+  }
+  
   /// Returns the k-th vertex of the cell (k = [0,3]) in CCW order
   /// (lower left, lower right, upper right, upper left in the UV plane).
   func vertex(_ k: Int) -> S2Point {
-    let face = Int(self.face)
     let u = uv.vertices[k].x
     let v = uv.vertices[k].y
-    return S2Point(raw: S2Cube(face: face, u: u, v: v).vector())
+    return S2Point(raw: S2Cube(face: Int(face), u: u, v: v).vector())
   }
 
   /// Returns the inward-facing normal of the great circle passing through
@@ -107,7 +124,9 @@ public struct Cell: S2RegionType {
     // First, compute the approximate area of the cell when projected
     // perpendicular to its normal. The cross product of its diagonals gives
     // the normal, and the length of the normal is twice the projected area.
-    let flatArea = 0.5 * (vertex(2).v.sub(vertex(0).v).cross(vertex(3).v.sub(vertex(1).v)).norm)
+    let d0 = vertex(2).v - vertex(0).v
+    let d1 = vertex(3).v - vertex(1).v
+    let flatArea = 0.5 * d0.cross(d1).norm
     // Now, compensate for the curvature of the cell surface by pretending
     // that the cell is shaped like a spherical cap. The ratio of the
     // area of a spherical cap to the area of its projected disc turns out
@@ -300,6 +319,206 @@ public struct Cell: S2RegionType {
     return uv.expanded(Cell.dblEpsilon).contains(uv2)
   }
 
+  // MARK: iterate
+  
+  /// Children returns the four direct children of this cell in traversal order
+  /// and returns true. If this is a leaf cell, or the children could not be created,
+  /// false is returned.
+  /// The C++ method is called Subdivide.
+  func children() -> [Cell]? {
+    if id.isLeaf() {
+      return nil
+    }
+    // Compute the cell midpoint in uv-space.
+    let uvMid = id.centerUV()
+    // Create four children with the appropriate bounds.
+    var cid = id.childBegin()
+    let children = (0..<4).map { (pos: Int) -> Cell in
+      // We want to split the cell in half in u and v. To decide which
+      // side to set equal to the midpoint value, we look at cell's (i,j)
+      // position within its parent. The index for i is in bit 1 of ij.
+      let ij = CellId.posToIJ[Int(orientation)][pos]
+      let i = ij >> 1
+      let j = ij & 1
+      let xLo = (i == 1) ? uvMid.x : uv.x.lo
+      let xHi = (i == 1) ? uv.x.hi : uvMid.x
+      let x = R1Interval(lo: xLo, hi: xHi)
+      let yLo = (j == 1) ? uvMid.y : uv.y.lo
+      let yHi = (j == 1) ? uv.y.hi : uvMid.y
+      let y = R1Interval(lo: yLo, hi: yHi)
+      let cuv = R2Rect(x: x, y: y)
+      let o = orientation ^ UInt8(CellId.posToOrientation[pos])
+      let child = Cell(face: face, level: level + 1, orientation: o, id: cid, uv: cuv)
+      cid = cid.next()
+      return child
+    }
+    return children
+  }
+
+  // MARK: edge methods
+  
+  /// Returns the squared chord distance from point P to the
+  /// given corner vertex specified by the Hi or Lo values of each.
+  func vertexChordDist2(p: S2Point, xHi: Bool, yHi: Bool) -> Double {
+    let x = xHi ? uv.x.hi : uv.x.lo
+    let y = yHi ? uv.y.hi : uv.y.lo
+    return p.sub(S2Point(x: x, y: y, z: 1)).norm2
+  }
+  
+  // uEdgeIsClosest reports whether a point P is closer to the interior of the specified
+  // Cell edge (either the lower or upper edge of the Cell) or to the endpoints.
+  func uEdgeIsClosest(p: S2Point, vHi: Bool) -> Bool {
+    let u0 = uv.x.lo
+    let u1 = uv.x.hi
+    let v = vHi ? uv.y.hi : uv.y.lo
+    // These are the normals to the planes that are perpendicular to the edge
+    // and pass through one of its two endpoints.
+    let dir0 = R3Vector(x: v*v + 1, y: -u0 * v, z: -u0)
+    let dir1 = R3Vector(x: v*v + 1, y: -u1 * v, z: -u1)
+    return p.v.dot(dir0) > 0 && p.v.dot(dir1) < 0
+  }
+  
+  // vEdgeIsClosest reports whether a point P is closer to the interior of the specified
+  // Cell edge (either the right or left edge of the Cell) or to the endpoints.
+  func vEdgeIsClosest(p: S2Point, uHi: Bool) -> Bool {
+    let v0 = uv.y.lo
+    let v1 = uv.y.hi
+    let u = uHi ? uv.x.hi : uv.x.lo
+    let dir0 = R3Vector(x: -u * v0, y: u*u + 1, z: -v0)
+    let dir1 = R3Vector(x: -u * v1, y: u*u + 1, z: -v1)
+    return p.v.dot(dir0) > 0 && p.v.dot(dir1) < 0
+  }
+  
+  // edgeDistance reports the distance from a Point P to a given Cell edge. The point
+  // P is given by its dot product, and the uv edge by its normal in the
+  // given coordinate value.
+  func edgeDistance(ij: Double, uv: Double) -> ChordAngle {
+    // Let P by the target point and let R be the closest point on the given
+    // edge AB.  The desired distance PR can be expressed as PR^2 = PQ^2 + QR^2
+    // where Q is the point P projected onto the plane through the great circle
+    // through AB.  We can compute the distance PQ^2 perpendicular to the plane
+    // from "dirIJ" (the dot product of the target point P with the edge
+    // normal) and the squared length the edge normal (1 + uv**2).
+    let pq2  = (ij * ij) / (1 + uv * uv)
+    // We can compute the distance QR as (1 - OQ) where O is the sphere origin,
+    // and we can compute OQ^2 = 1 - PQ^2 using the Pythagorean theorem.
+    // (This calculation loses accuracy as angle POQ approaches Pi/2.)
+    let qr = 1 - sqrt(1 - pq2)
+    return ChordAngle(squaredLength: pq2 + qr * qr)
+  }
+  
+  // distanceInternal reports the distance from the given point to the interior of
+  // the cell if toInterior is true or to the boundary of the cell otherwise.
+  func distanceInternal(targetXYZ: S2Point, toInterior: Bool) -> ChordAngle {
+    // All calculations are done in the (u,v,w) coordinates of this cell's face.
+    let target = S2Cube.faceXYZtoUVW(face: Int(face), point: targetXYZ)
+    // Compute dot products with all four upward or rightward-facing edge
+    // normals. dirIJ is the dot product for the edge corresponding to axis
+    // I, endpoint J. For example, dir01 is the right edge of the Cell
+    // (corresponding to the upper endpoint of the u-axis).
+    let dir00 = target.x - target.z * uv.x.lo
+    let dir01 = target.x - target.z * uv.x.hi
+    let dir10 = target.y - target.z * uv.y.lo
+    let dir11 = target.y - target.z * uv.y.hi
+    var inside = true
+    if dir00 < 0 {
+      inside = false // Target is to the left of the cell
+      if vEdgeIsClosest(p: target, uHi: false) {
+        return edgeDistance(ij: -dir00, uv: uv.x.lo)
+      }
+    }
+    if dir01 > 0 {
+      inside = false // Target is to the right of the cell
+      if vEdgeIsClosest(p: target, uHi: true) {
+        return edgeDistance(ij: dir01, uv: uv.x.hi)
+      }
+    }
+    if dir10 < 0 {
+      inside = false // Target is below the cell
+      if uEdgeIsClosest(p: target, vHi: false) {
+        return edgeDistance(ij: -dir10, uv: uv.y.lo)
+      }
+    }
+    if dir11 > 0 {
+      inside = false // Target is above the cell
+      if uEdgeIsClosest(p: target, vHi: true) {
+        return edgeDistance(ij: dir11, uv: uv.y.hi)
+      }
+    }
+    if inside {
+      if toInterior {
+        return ChordAngle.zero
+      }
+      // Although you might think of Cells as rectangles, they are actually
+      // arbitrary quadrilaterals after they are projected onto the sphere.
+      // Therefore the simplest approach is just to find the minimum distance to
+      // any of the four edges.
+      return min(edgeDistance(ij: -dir00, uv: uv.x.lo),
+                 edgeDistance(ij: dir01, uv: uv.x.hi),
+                 edgeDistance(ij: -dir10, uv: uv.y.lo),
+                 edgeDistance(ij: dir11, uv: uv.y.hi))
+    }
+    // Otherwise, the closest point is one of the four cell vertices. Note that
+    // it is *not* trivial to narrow down the candidates based on the edge sign
+    // tests above, because (1) the edges don't meet at right angles and (2)
+    // there are points on the far side of the sphere that are both above *and*
+    // below the cell, etc.
+    let chordDist2 = min(vertexChordDist2(p: target, xHi: false, yHi: false),
+                         vertexChordDist2(p: target, xHi: true, yHi: false),
+                         vertexChordDist2(p: target, xHi: false, yHi: true),
+                         vertexChordDist2(p: target, xHi: true, yHi: true))
+    return ChordAngle(squaredLength: chordDist2)
+  }
+  
+  // Distance reports the distance from the cell to the given point. Returns zero if
+  // the point is inside the cell.
+  func distance(target: S2Point) -> ChordAngle {
+    return distanceInternal(targetXYZ: target, toInterior: true)
+  }
+  
+  // BoundaryDistance reports the distance from the cell boundary to the given point.
+  func boundaryDistance(target: S2Point) -> ChordAngle {
+    return distanceInternal(targetXYZ: target, toInterior: false)
+  }
+  
+  // DistanceToEdge returns the minimum distance from the cell to the given edge AB. Returns
+  // zero if the edge intersects the cell interior.
+  func distanceToEdge(a: S2Point, b: S2Point) -> ChordAngle {
+    // Possible optimizations:
+    //  - Currently the (cell vertex, edge endpoint) distances are computed
+    //    twice each, and the length of AB is computed 4 times.
+    //  - To fix this, refactor GetDistance(target) so that it skips calculating
+    //    the distance to each cell vertex. Instead, compute the cell vertices
+    //    and distances in this function, and add a low-level UpdateMinDistance
+    //    that allows the XA, XB, and AB distances to be passed in.
+    //  - It might also be more efficient to do all calculations in UVW-space,
+    //    since this would involve transforming 2 points rather than 4.
+    // First, check the minimum distance to the edge endpoints A and B.
+    // (This also detects whether either endpoint is inside the cell.)
+    var minDist = min(distance(target: a), distance(target: b))
+    if minDist == .zero {
+      return minDist
+    }
+    // Otherwise, check whether the edge crosses the cell boundary.
+    var crosser = EdgeCrosser(a: a, b: b, c: vertex(3))
+    for i in 0..<4 {
+      if crosser.chainCrossingSign(d: vertex(i)) >= 0 {
+        return .zero
+      }
+    }
+    // Finally, check whether the minimum distance occurs between a cell vertex
+    // and the interior of the edge AB. (Some of this work is redundant, since
+    // it also checks the distance to the endpoints A and B again.)
+    //
+    // Note that we don't need to check the distance from the interior of AB to
+    // the interior of a cell edge, because the only way that this distance can
+    // be minimal is if the two edges cross (already checked above).
+    for i in 0..<4 {
+      (minDist, _) = updateMinDistance(x: vertex(i), a: a, b: b, minDist: minDist)
+    }
+    return minDist
+  }
+  
 }
 
 extension Cell: Equatable, Comparable {

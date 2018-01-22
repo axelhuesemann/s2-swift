@@ -303,6 +303,42 @@ public struct CellId {
     return cellId.rangeMin().id <= rangeMax().id && cellId.rangeMax().id >= rangeMin().id
   }
 
+  // MARK: ST and UV
+  
+  /// Return the center of the CellID in (s,t)-space.
+  func centerST() -> R2Point {
+    let (_, si, ti) = faceSiTi()
+    return R2Point(x: S2Cube.siTiToST(si: UInt32(si)), y: S2Cube.siTiToST(si: UInt32(ti)))
+  }
+  
+  /// Returns the edge length of this CellID in (s,t)-space at the given level.
+  func sizeST(level: Int) -> Double {
+    return CellId.ijToSTMin(CellId.sizeIJ(level))
+  }
+  
+  /// Returns the bound of this CellID in (s,t)-space.
+  func boundST() -> R2Rect {
+    let s = sizeST(level: level())
+    return R2Rect(center: centerST(), size: R2Point(x: s, y: s))
+  }
+  
+  /// Returns the center of this CellID in (u,v)-space. Note that
+  /// the center of the cell is defined as the point at which it is recursively
+  /// subdivided into four children; in general, it is not at the midpoint of
+  /// the (u,v) rectangle covered by the cell.
+  func centerUV() -> R2Point {
+    let (_, si, ti) = faceSiTi()
+    let x = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(si)))
+    let y = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(ti)))
+    return R2Point(x: x, y: y)
+  }
+  
+  /// Returns the bound of this CellID in (u,v)-space.
+  func boundUV() -> R2Rect {
+    let (_, i, j, _) = faceIJOrientation()
+    return CellId.ijLevelToBoundUV(i: i, j: j, level: level())
+  }
+  
   // MARK: conversions
   
   /// Returns the center of the s2 cell on the sphere as a Point.

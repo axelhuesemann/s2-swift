@@ -11,16 +11,16 @@ import Foundation
 // allowed, i.e. adjacent vertices should not be identical or antipodal.
 public struct S2Polyline: Shape, S2RegionType {
  
-  let points: [S2Point]
+  private let points: [S2Point]
   
   // MARK: inits
   
-  init(points: [S2Point]) {
+  public init(points: [S2Point]) {
     self.points = points
   }
 
   // PolylineFromLatLngs creates a new Polyline from the given LatLngs.
-  init(latLngs: [LatLng]) {
+  public init(latLngs: [LatLng]) {
     let points = latLngs.map { S2Point(latLng: $0) }
     self.init(points: points)
   }
@@ -28,7 +28,7 @@ public struct S2Polyline: Shape, S2RegionType {
   // MARK: 
   
   // Reverse reverses the order of the Polyline vertices.
-  func reversed() -> S2Polyline {
+  public func reversed() -> S2Polyline {
     return S2Polyline(points: points.reversed())
   }
   
