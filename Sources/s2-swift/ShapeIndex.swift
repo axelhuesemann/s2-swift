@@ -60,11 +60,6 @@ struct ClippedShape {
 
 extension ClippedShape {
   
-  /// Returns a new clipped shape for the given shapeID and number of expected edges.
-//  init(id: Int32, numEdges: Int) {
-//    self.init(shapeId: id, containsCenter: false, edges: [Int]())
-//  }
-  
   /// Returns the number of edges that intersect the CellID of the Cell this was clipped to.
   func numEdges() -> Int {
     return edges.count
@@ -84,7 +79,7 @@ extension ClippedShape {
 
 }
 
-/// Stores the index contents for a particular CellID.
+/// Stores the index contents for a particular CellId.
 struct ShapeIndexCell {
   var shapes: [ClippedShape]
 }
@@ -98,11 +93,7 @@ extension ShapeIndexCell {
 
   // numEdges reports the total number of edges in all clipped shapes in this cell.
   func numEdges() -> Int {
-    var e = 0
-    for cs in shapes {
-      e += cs.numEdges()
-    }
-    return e
+    return shapes.reduce(0) { $0 + $1.numEdges() }
   }
 
   // add adds the given clipped shape to this index cell.
@@ -116,12 +107,7 @@ extension ShapeIndexCell {
     // Linear search is fine because the number of shapes per cell is typically
     // very small (most often 1), and is large only for pathological inputs
     // (e.g. very deeply nested loops).
-    for clipped in shapes {
-      if clipped.shapeId == shapeId {
-        return clipped
-      }
-    }
-    return nil
+    return shapes.first(where: { $0.shapeId == shapeId })
   }
 
 }
@@ -220,12 +206,12 @@ extension ShapeIndexIterator {
     return cell
   }
 
-  // Center returns the Point at the center of the current position of the iterator.
+  /// Returns the Point at the center of the current position of the iterator.
   func center() -> S2Point {
     return id.point()
   }
 
-  // Begin positions the iterator at the beginning of the index.
+  /// Positions the iterator at the beginning of the index.
   mutating func begin() {
     if !index.isFresh() {
       index.maybeApplyUpdates()
@@ -234,15 +220,15 @@ extension ShapeIndexIterator {
     refresh()
   }
 
-  // Next positions the iterator at the next index cell.
+  /// Positions the iterator at the next index cell.
   mutating func next() {
     position += 1
     refresh()
   }
 
-  // Prev advances the iterator to the previous cell in the index and returns true to
-  // indicate it was not yet at the beginning of the index. If the iterator is at the
-  // first cell the call does nothing and returns false.
+  /// Advances the iterator to the previous cell in the index and returns true to
+  /// indicate it was not yet at the beginning of the index. If the iterator is at the
+  /// first cell the call does nothing and returns false.
   mutating func prev() -> Bool {
     if position <= 0 {
       return false
@@ -252,18 +238,18 @@ extension ShapeIndexIterator {
     return true
   }
 
-  // End positions the iterator at the end of the index.
+  /// Positions the iterator at the end of the index.
   mutating func end() {
     position = index.cells.count
     refresh()
   }
 
-  // Done reports if the iterator is positioned at or after the last index cell.
+  /// Reports if the iterator is positioned at or after the last index cell.
   func done() -> Bool {
     return id == sentinelCellId
   }
 
-  // refresh updates the stored internal iterator values.
+  /// Updates the stored internal iterator values.
   mutating func refresh() {
     if position < index.cells.count {
       id = index.cells[position]
@@ -274,8 +260,8 @@ extension ShapeIndexIterator {
     }
   }
 
-  // seek positions the iterator at the first cell whose ID >= target, or at the
-  // end of the index if no such cell exists.
+  /// Positions the iterator at the first cell whose ID >= target, or at the
+  /// end of the index if no such cell exists.
   mutating func seek(target: CellId) {
     position = 0
     // In C++, this relies on the lower_bound method of the underlying btree_map.
@@ -292,16 +278,16 @@ extension ShapeIndexIterator {
     refresh()
   }
 
-  // LocatePoint positions the iterator at the cell that contains the given Point.
-  // If no such cell exists, the iterator position is unspecified, and false is returned.
-  // The cell at the matched position is guaranteed to contain all edges that might
-  // intersect the line segment between target and the cell's center.
-  mutating func locatePoint(p: S2Point) -> Bool {
+  /// Positions the iterator at the cell that contains the given Point.
+  /// If no such cell exists, the iterator position is unspecified, and false is returned.
+  /// The cell at the matched position is guaranteed to contain all edges that might
+  /// intersect the line segment between target and the cell's center.
+  mutating func locate(point: S2Point) -> Bool {
     // Let I = cellMap.LowerBound(T), where T is the leaf cell containing
     // point P. Then if T is contained by an index cell, then the
     // containing cell is either I or I'. We test for containment by comparing
     // the ranges of leaf cells spanned by T, I, and I'.
-    let target = CellId(point: p)
+    let target = CellId(point: point)
     seek(target: target)
     if !done() && cellId().rangeMin() <= target {
       return true
@@ -312,12 +298,12 @@ extension ShapeIndexIterator {
     return false
   }
 
-  // LocateCellID attempts to position the iterator at the first matching index cell
-  // in the index that has some relation to the given CellID. Let T be the target CellID.
-  // If T is contained by (or equal to) some index cell I, then the iterator is positioned
-  // at I and returns Indexed. Otherwise if T contains one or more (smaller) index cells,
-  // then the iterator is positioned at the first such cell I and return Subdivided.
-  // Otherwise Disjoint is returned and the iterator position is undefined.
+  /// Attempts to position the iterator at the first matching index cell
+  /// in the index that has some relation to the given CellID. Let T be the target CellID.
+  /// If T is contained by (or equal to) some index cell I, then the iterator is positioned
+  /// at I and returns Indexed. Otherwise if T contains one or more (smaller) index cells,
+  /// then the iterator is positioned at the first such cell I and return Subdivided.
+  /// Otherwise Disjoint is returned and the iterator position is undefined.
   mutating func locate(cellId target: CellId) -> CellRelation {
     // Let T be the target, let I = cellMap.LowerBound(T.RangeMin()), and
     // let I' be the predecessor of I. If T contains any index cells, then T
@@ -341,25 +327,23 @@ extension ShapeIndexIterator {
 
 }
 
-// tracker keeps track of which shapes in a given set contain a particular point
-// (the focus). It provides an efficient way to move the focus from one point
-// to another and incrementally update the set of shapes which contain it. We use
-// this to compute which shapes contain the center of every CellID in the index,
-// by advancing the focus from one cell center to the next.
-//
-// Initially the focus is at the start of the CellID space-filling curve. We then
-// visit all the cells that are being added to the ShapeIndex in increasing order
-// of CellID. For each cell, we draw two edges: one from the entry vertex to the
-// center, and another from the center to the exit vertex (where entry and exit
-// refer to the points where the space-filling curve enters and exits the cell).
-// By counting edge crossings we can incrementally compute which shapes contain
-// the cell center. Note that the same set of shapes will always contain the exit
-// point of one cell and the entry point of the next cell in the index, because
-// either (a) these two points are actually the same, or (b) the intervening
-// cells in CellID order are all empty, and therefore there are no edge crossings
-// if we follow this path from one cell to the other.
-//
-// In C++, this is S2ShapeIndex::InteriorTracker.
+/// Keeps track of which shapes in a given set contain a particular point
+/// (the focus). It provides an efficient way to move the focus from one point
+/// to another and incrementally update the set of shapes which contain it. We use
+/// this to compute which shapes contain the center of every CellID in the index,
+/// by advancing the focus from one cell center to the next.
+///
+/// Initially the focus is at the start of the CellID space-filling curve. We then
+/// visit all the cells that are being added to the ShapeIndex in increasing order
+/// of CellID. For each cell, we draw two edges: one from the entry vertex to the
+/// center, and another from the center to the exit vertex (where entry and exit
+/// refer to the points where the space-filling curve enters and exits the cell).
+/// By counting edge crossings we can incrementally compute which shapes contain
+/// the cell center. Note that the same set of shapes will always contain the exit
+/// point of one cell and the entry point of the next cell in the index, because
+/// either (a) these two points are actually the same, or (b) the intervening
+/// cells in CellID order are all empty, and therefore there are no edge crossings
+/// if we follow this path from one cell to the other.
 struct Tracker {
   var isActive: Bool
   var a: S2Point
@@ -511,14 +495,6 @@ extension Tracker {
 
 }
 
-// removedShape represents a set of edges from the given shape that is queued for removal.
-struct RemovedShape {
-  let shapeId: Int32
-  let hasInterior: Bool
-  let containsTrackerOrigin: Bool
-  let edges: [Edge]
-}
-
 // There are three basic states the index can be in.
 enum StateIndex {
   case stale // There are pending updates.
@@ -586,8 +562,6 @@ public class ShapeIndex {
   // via applyUpdatesInternal.
   var pendingAdditionsPos: Int32
   // The set of shapes that have been queued for removal but not processed yet by
-  // applyUpdatesInternal.
-  var pendingRemovals: [RemovedShape]
   
   init() {
     shapes = [:]
@@ -597,7 +571,6 @@ public class ShapeIndex {
     cells = []
     status = .fresh
     pendingAdditionsPos = -1
-    pendingRemovals = []
   }
 
 }
@@ -642,11 +615,7 @@ extension ShapeIndex {
   
   /// Returns the number of edges in this index.
   func numEdges() -> Int {
-    var numEdges = 0
-    for shape in shapes.values {
-      numEdges += shape.numEdges()
-    }
-    return numEdges
+    return shapes.values.reduce(0) { $0 + $1.numEdges() }
   }
   
   /// Returns the shape with the given ID, or nil if the shape has been removed from the index.
@@ -658,40 +627,6 @@ extension ShapeIndex {
   func add(shape: Shape) {
     shapes[nextId] = shape
     nextId += 1
-    status = .stale
-//    return nextId - 1
-  }
-
-  func find(shape: Shape) -> Int32? {
-    // The index updates itself lazily because it is much more efficient to
-    // process additions and removals in batches.
-    // Lookup the id of this shape in the index.
-    for (k, v) in shapes {
-      // TODO !!! figure out equality
-//      if v == shape {
-//        return k
-//      }
-    }
-    return nil
-  }
-  
-  /// Removes the given shape from the index.
-  func remove(shape: Shape) {
-    // If the shape wasn't found, it's already been removed or was not in the index.
-    guard let id = find(shape: shape), shapes[id] != nil else {
-      return
-    }
-    // Remove the shape from the shapes map.
-    shapes.removeValue(forKey: id)
-    // We are removing a shape that has not yet been added to the index,
-    // so there is nothing else to do.
-    if id >= pendingAdditionsPos {
-      return
-    }
-    let numEdges = shape.numEdges()
-    let removedEdges = (0..<numEdges).map { shape.edge($0) }
-    let removed = RemovedShape(shapeId: id, hasInterior: shape.hasInterior(), containsTrackerOrigin: shape.referencePoint().contained, edges: removedEdges)
-    pendingRemovals.append(removed)
     status = .stale
   }
   
@@ -745,16 +680,12 @@ extension ShapeIndex {
     var t = Tracker()
     // allEdges maps a Face to a collection of faceEdges.
     var allEdges = [[FaceEdge]]() // make([][]faceEdge, 6)
-    for p in pendingRemovals {
-      removeShapeInternal(removed: p, allEdges: allEdges, t: &t)
-    }
     for id in pendingAdditionsPos..<Int32(shapes.count) {
       addShapeInternal(shapeId: id, allEdges: &allEdges, t: &t)
     }
     for face in 0..<6 {
       updateFaceEdges(face: face, faceEdges: allEdges[face], t: &t)
     }
-    pendingRemovals = []
     pendingAdditionsPos = Int32(shapes.count)
     // It is the caller's responsibility to update the index status.
   }
@@ -850,7 +781,7 @@ extension ShapeIndex {
     updateEdges(pcell: pcell, edges: &clippedEdges, t: &t, disjointFromIndex: disjointFromIndex)
   }
 
-  // shrinkToFit shrinks the PaddedCell to fit within the given bounds.
+  /// Shrinks the PaddedCell to fit within the given bounds.
   func shrinkToFit(pcell: PaddedCell, bound: R2Rect) -> CellId {
     var shrunkId = pcell.shrinkToFit(rect: bound)
     if !isFirstUpdate() && shrunkId != pcell.id {
@@ -864,8 +795,8 @@ extension ShapeIndex {
     return shrunkId
   }
   
-  // skipCellRange skips over the cells in the given range, creating index cells if we are
-  // currently in the interior of at least one shape.
+  /// Skips over the cells in the given range, creating index cells if we are
+  /// currently in the interior of at least one shape.
   func skipCellRange(begin: CellId, end: CellId, t: inout Tracker, disjointFromIndex: Bool) {
     // If we aren't in the interior of a shape, then skipping over cells is easy.
     if t.shapeIds.count == 0 {
@@ -881,9 +812,9 @@ extension ShapeIndex {
     }
   }
   
-  // updateEdges adds or removes the given edges whose bounding boxes intersect a
-  // given cell. disjointFromIndex is an optimization hint indicating that cellMap
-  // does not contain any entries that overlap the given cell.
+  /// Adds or removes the given edges whose bounding boxes intersect a
+  /// given cell. disjointFromIndex is an optimization hint indicating that cellMap
+  /// does not contain any entries that overlap the given cell.
   func updateEdges(pcell: PaddedCell, edges: inout [ClippedEdge], t: inout Tracker, disjointFromIndex: Bool) {
     // This function is recursive with a maximum recursion depth of 30 (maxLevel).
     // Incremental updates are handled as follows. All edges being added or
@@ -1010,8 +941,8 @@ extension ShapeIndex {
     }
   }
 
-  // makeIndexCell builds an indexCell from the given padded cell and set of edges and adds
-  // it to the index. If the cell or edges are empty, no cell is added.
+  /// Builds an indexCell from the given padded cell and set of edges and adds
+  /// it to the index. If the cell or edges are empty, no cell is added.
   func makeIndexCell(p: PaddedCell, edges: [ClippedEdge], t: inout Tracker) -> Bool {
     // If the cell is empty, no index cell is needed. (In most cases this
     // situation is detected before we get to this point, but this can happen
@@ -1110,8 +1041,8 @@ extension ShapeIndex {
     return true
   }
 
-  // updateBound updates the specified endpoint of the given clipped edge and returns the
-  // resulting clipped edge.
+  /// Updates the specified endpoint of the given clipped edge and returns the
+  /// resulting clipped edge.
   func updateBound(edge: ClippedEdge, uEnd: Int, u: Double, vEnd: Int, v: Double) -> ClippedEdge {
     let x = R1Interval(lo: uEnd == 0 ? u : edge.bound.x.lo, hi: uEnd == 0 ? edge.bound.x.hi : u)
     let y = R1Interval(lo: vEnd == 0 ? v : edge.bound.y.lo, hi: vEnd == 0 ? edge.bound.y.hi : v)
@@ -1119,8 +1050,8 @@ extension ShapeIndex {
     return ClippedEdge(faceEdge: edge.faceEdge, bound: bound)
   }
 
-  // clipUBound clips the given endpoint (lo=0, hi=1) of the u-axis so that
-  // it does not extend past the given value of the given edge.
+  /// Clips the given endpoint (lo=0, hi=1) of the u-axis so that
+  /// it does not extend past the given value of the given edge.
   func clipUBound(edge: ClippedEdge, uEnd: Int, u: Double) -> ClippedEdge {
     // First check whether the edge actually requires any clipping. (Sometimes
     // this method is called when clipping is not necessary, e.g. when one edge
@@ -1153,8 +1084,8 @@ extension ShapeIndex {
     return updateBound(edge: edge, uEnd: uEnd, u: u, vEnd: vEnd, v: v)
   }
 
-  // clipVBound clips the given endpoint (lo=0, hi=1) of the v-axis so that
-  // it does not extend past the given value of the given edge.
+  /// Clips the given endpoint (lo=0, hi=1) of the v-axis so that
+  /// it does not extend past the given value of the given edge.
   func clipVBound(edge: ClippedEdge, vEnd: Int, v: Double) -> ClippedEdge {
     if vEnd == 0 {
       if edge.bound.y.lo >= v {
@@ -1184,8 +1115,8 @@ extension ShapeIndex {
     return updateBound(edge: edge, uEnd: uEnd, u: u, vEnd: vEnd, v: v)
   }
   
-  // cliupVAxis returns the given edge clipped to within the boundaries of the middle
-  // interval along the v-axis, and adds the result to its children.
+  /// Returns the given edge clipped to within the boundaries of the middle
+  /// interval along the v-axis, and adds the result to its children.
   func clipVAxis(edge: ClippedEdge, middle: R1Interval) -> (a: ClippedEdge?, b: ClippedEdge?) {
     if edge.bound.y.hi <= middle.lo {
       // Edge is entirely contained in the lower child.
@@ -1350,9 +1281,4 @@ extension ShapeIndex {
     return S2CellMetric.avgEdge.minLevel(cellSize)
   }
   
-  /// Does the actual work for removing a given shape from the index.
-  func removeShapeInternal(removed: RemovedShape, allEdges: [[FaceEdge]], t: inout Tracker) {
-    // TODO(roberts): finish the implementation of this.
-  }
-
 }

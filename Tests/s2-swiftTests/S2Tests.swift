@@ -346,12 +346,12 @@ func perturbATowardsB(a: S2Point, b: S2Point) -> S2Point {
 	}
 	if choice < 0.5 {
 		// Return a point such that the distance squared to A will underflow.
-		return interpolateAtDistance(1e-300, a: a, b: b)
+    return interpolateAtDistance(ax: 1e-300, a: a, b: b)
 	}
 	// Otherwise return a point whose distance from A is near dblEpsilon such
 	// that the log of the pdf is uniformly distributed.
 	let distance = Cell.dblEpsilon * 1e-5 * pow(1e6, randomFloat64())
-	return interpolateAtDistance(distance, a: a, b: b)
+  return interpolateAtDistance(ax: distance, a: a, b: b)
 }
 
 // perturbedCornerOrMidpoint returns a Point from a line segment whose endpoints are

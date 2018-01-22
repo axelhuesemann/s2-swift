@@ -481,6 +481,10 @@ public struct Cell: S2RegionType {
     return distanceInternal(targetXYZ: target, toInterior: false)
   }
   
+}
+
+extension Cell {
+  
   // DistanceToEdge returns the minimum distance from the cell to the given edge AB. Returns
   // zero if the edge intersects the cell interior.
   func distanceToEdge(a: S2Point, b: S2Point) -> ChordAngle {
@@ -502,7 +506,7 @@ public struct Cell: S2RegionType {
     // Otherwise, check whether the edge crosses the cell boundary.
     var crosser = EdgeCrosser(a: a, b: b, c: vertex(3))
     for i in 0..<4 {
-      if crosser.chainCrossingSign(d: vertex(i)) >= 0 {
+      if crosser.chainCrossingSign(d: vertex(i)) != .doNotCross {
         return .zero
       }
     }

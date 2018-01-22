@@ -637,7 +637,7 @@ public struct S2Loop: Shape, S2RegionType {
       return nil
     }
     var it = index.iterator()
-    guard it.locatePoint(p: p) else { return nil }
+    guard it.locate(point: p) else { return nil }
     guard let aClipped = it.indexCell()!.find(shapeId: 0) else { return nil }
     let nEdges = aClipped.numEdges()
     for j in 1...nEdges {

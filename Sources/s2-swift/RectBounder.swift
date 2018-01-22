@@ -1,22 +1,22 @@
 //
-//  S2EdgeUtility.swift
+//  RectBounder
 //  s2-swift
 //
 
 import Foundation
 
 
-// RectBounder is used to compute a bounding rectangle that contains all edges
-// defined by a vertex chain (v0, v1, v2, ...). All vertices must be unit length.
-// Note that the bounding rectangle of an edge can be larger than the bounding
-// rectangle of its endpoints, e.g. consider an edge that passes through the North Pole.
-//
-// The bounds are calculated conservatively to account for numerical errors
-// when points are converted to LatLngs. More precisely, this function
-// guarantees the following:
-// Let L be a closed edge chain (Loop) such that the interior of the loop does
-// not contain either pole. Now if P is any point such that L.ContainsPoint(P),
-// then RectBound(L).ContainsPoint(LatLngFromPoint(P)).
+/// Used to compute a bounding rectangle that contains all edges
+/// defined by a vertex chain (v0, v1, v2, ...). All vertices must be unit length.
+/// Note that the bounding rectangle of an edge can be larger than the bounding
+/// rectangle of its endpoints, e.g. consider an edge that passes through the North Pole.
+///
+/// The bounds are calculated conservatively to account for numerical errors
+/// when points are converted to LatLngs. More precisely, this function
+/// guarantees the following:
+/// Let L be a closed edge chain (Loop) such that the interior of the loop does
+/// not contain either pole. Now if P is any point such that L.ContainsPoint(P),
+/// then RectBound(L).ContainsPoint(LatLngFromPoint(P)).
 struct RectBounder {
 
   // The previous vertex in the chain.
@@ -32,23 +32,20 @@ struct RectBounder {
   	bound = S2Rect.empty
   }
 
-  // AddPoint adds the given point to the chain. The Point must be unit length.
+  /// Adds the given point to the chain. The Point must be unit length.
   mutating func add(point b: S2Point) {
     let bLL = LatLng(point: b)
-
     if bound.isEmpty {
       a = b
       aLL = bLL
       bound = bound.add(bLL)
       return
     }
-
     // First compute the cross product N = A x B robustly. This is the normal
     // to the great circle through A and B. We don't use RobustSign
     // since that method returns an arbitrary vector orthogonal to A if the two
     // vectors are proportional, and we want the zero vector in that case.
     let n = a.v.sub(b.v).cross(a.v.add(b.v)) // N = 2 * (A x B)
-
     // The relative error in N gets large as its norm gets very small (i.e.,
     // when the two points are nearly identical or antipodal). We handle this
     // by choosing a maximum allowable error, and if the error is greater than
@@ -80,7 +77,6 @@ struct RectBounder {
       aLL = bLL
       return
     }
-
     // Compute the longitude range spanned by AB.
     var lngAB = S1Interval.empty.add(aLL.lng).add(bLL.lng)
     if lngAB.length >= .pi - 2 * Cell.dblEpsilon {
@@ -89,11 +85,9 @@ struct RectBounder {
       // that AB could go on either side of the pole.
       lngAB = S1Interval.full
     }
-
     // Next we compute the latitude range spanned by the edge AB. We start
     // with the range spanning the two endpoints of the edge:
     var latAB = R1Interval(point: aLL.lat).add(bLL.lat)
-
     // This is the desired range unless the edge AB crosses the plane
     // through N and the Z-axis (which is where the great circle through A
     // and B attains its minimum and maximum latitudes). To test whether AB
@@ -102,14 +96,12 @@ struct RectBounder {
     let m = n.cross(R3Vector(x: 0, y: 0, z: 1))
     let mA = m.dot(a.v)
     let mB = m.dot(b.v)
-
     // We want to test the signs of "mA" and "mB", so we need to bound
     // the error in these calculations. It is possible to show that the
     // total error is bounded by
     //
     // (1 + sqrt(3)) * dblEpsilon * nNorm + 8 * sqrt(3) * (dblEpsilon**2)
     //   = 6.06638e-16 * nNorm + 6.83174e-31
-
     let mError  = 6.06638e-16 * nNorm + 6.83174e-31
     if mA * mB < 0 || abs(mA) <= mError || abs(mB) <= mError {
       // Minimum/maximum latitude *may* occur in the edge interior.
@@ -132,7 +124,6 @@ struct RectBounder {
       // We add 3 * dblEpsilon to the bound here, and GetBound() will pad
       // the bound by another 2 * dblEpsilon.
       let maxLat = min(atan2(sqrt(n.x*n.x + n.y*n.y), abs(n.z)) + 3 * Cell.dblEpsilon, .pi/2)
-
       // In order to get tight bounds when the two points are close together,
       // we also bound the min/max latitude relative to the latitudes of the
       // endpoints A and B. First we compute the distance between A and B,
@@ -144,7 +135,6 @@ struct RectBounder {
       // attained along the edge AB.
       let latBudget = 2 * asin(0.5 * (a.v.sub(b.v)).norm * sin(maxLat))
       let maxDelta = 0.5 * (latBudget - latAB.length) + Cell.dblEpsilon
-
       // Test whether AB passes through the point of maximum latitude or
       // minimum latitude. If the dot product(s) are small enough then the
       // result may be ambiguous.
@@ -159,32 +149,29 @@ struct RectBounder {
     aLL = bLL
     bound = bound.union(S2Rect(lat: latAB, lng: lngAB))
   }
-
-  // RectBound returns the bounding rectangle of the edge chain that connects the
-  // vertices defined so far. This bound satisfies the guarantee made
-  // above, i.e. if the edge chain defines a Loop, then the bound contains
-  // the LatLng coordinates of all Points contained by the loop.
+  
+  /// Returns the bounding rectangle of the edge chain that connects the
+  /// vertices defined so far. This bound satisfies the guarantee made
+  /// above, i.e. if the edge chain defines a Loop, then the bound contains
+  /// the LatLng coordinates of all Points contained by the loop.
   func rectBound() -> S2Rect {
     return bound.expanded(LatLng(lat: 2 * Cell.dblEpsilon, lng: 0)).polarClosure()
   }
 
 }
 
-// ExpandForSubregions expands a bounding Rect so that it is guaranteed to
-// contain the bounds of any subregion whose bounds are computed using
-// ComputeRectBound. For example, consider a loop L that defines a square.
-// GetBound ensures that if a point P is contained by this square, then
-// LatLngFromPoint(P) is contained by the bound. But now consider a diamond
-// shaped loop S contained by L. It is possible that GetBound returns a
-// *larger* bound for S than it does for L, due to rounding errors. This
-// method expands the bound for L so that it is guaranteed to contain the
-// bounds of any subregion S.
-//
-// More precisely, if L is a loop that does not contain either pole, and S
-// is a loop such that L.Contains(S), then
-//
-//   ExpandForSubregions(L.RectBound).Contains(S.RectBound).
-//
+/// Expands a bounding Rect so that it is guaranteed to
+/// contain the bounds of any subregion whose bounds are computed using
+/// ComputeRectBound. For example, consider a loop L that defines a square.
+/// GetBound ensures that if a point P is contained by this square, then
+/// LatLngFromPoint(P) is contained by the bound. But now consider a diamond
+/// shaped loop S contained by L. It is possible that GetBound returns a
+/// *larger* bound for S than it does for L, due to rounding errors. This
+/// method expands the bound for L so that it is guaranteed to contain the
+/// bounds of any subregion S.
+/// More precisely, if L is a loop that does not contain either pole, and S
+/// is a loop such that L.Contains(S), then
+///   ExpandForSubregions(L.RectBound).Contains(S.RectBound).
 extension S2Rect {
  
   func expandForSubregions() -> S2Rect {
@@ -312,4 +299,5 @@ extension S2Rect {
     }
     return expanded(LatLng(lat: latExpansion, lng: lngExpansion)).polarClosure()
   }
+  
 }

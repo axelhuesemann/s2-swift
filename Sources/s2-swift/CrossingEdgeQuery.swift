@@ -41,8 +41,8 @@ extension CrossingEdgeQuery {
   // If the CrossingType is Interior, then only intersections at a point interior to both
   // edges are reported, while if it is CrossingTypeAll then edges that share a vertex
   // are also reported.
-  mutating func crossings(a: S2Point, b: S2Point, shape: Shape, crossType: CrossingType) -> [Int]? {
-    var edges = candidates(a: a, b: b, shape: shape)
+  mutating func crossings(a: S2Point, b: S2Point, shape: Shape, shapeId: Int32, crossType: CrossingType) -> [Int]? {
+    var edges = candidates(a: a, b: b, shape: shape, shapeId: shapeId)
     if edges.count == 0 {
       return nil
     }
@@ -100,7 +100,7 @@ extension CrossingEdgeQuery {
 
   // candidates returns a superset of the edges of the given shape that intersect
   // the edge AB.
-  mutating func candidates(a: S2Point, b: S2Point, shape: Shape) -> [Int] {
+  mutating func candidates(a: S2Point, b: S2Point, shape: Shape, shapeId: Int32) -> [Int] {
     // For small loops it is faster to use brute force. The threshold below was
     // determined using benchmarks.
     let maxBruteForceEdges = 27
@@ -116,7 +116,7 @@ extension CrossingEdgeQuery {
     // Gather all the edges that intersect those cells and sort them.
     // TODO(roberts): Shapes don't track their ID, so we need to range over
     // the index to find the ID manually.
-    guard let shapeId = index.find(shape: shape) else { return [] }
+//    guard let shapeId = index.find(shape: shape) else { return [] }
     var edges: [Int] = []
     for cell in cells {
       guard let clipped = cell.find(shapeId: shapeId) else {
