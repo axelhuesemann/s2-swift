@@ -48,34 +48,16 @@ public struct S2Point {
   // MARK: inits / factory
   
   init(x: Double, y: Double, z: Double, normalize: Bool) {
-    // not normalized
     if normalize {
-      fatalError("won't normalize this way")
+      (self.x, self.y, self.z) = S2Point.normalize(x: x, y: y, z: z)
+    } else {
+      (self.x, self.y, self.z) = (x, y, z)
     }
-    self.x = x
-    self.y = y
-    self.z = z
-  }
-  
-  init(origin: Bool) {
-    self.init(x: 0, y: 0, z: 0)
   }
   
   init(x: Double, y: Double, z: Double) {
     // normalize explicitly to prevent needing recursive construction
-    let norm2 = x * x + y * y + z * z
-    if norm2 == 0.0 {
-      // this is different from R3Vector, instead of 0,0,0 we pick a point that's on the unit sphere
-      // but not quite on an edge so this remains stable(?)
-      self.x = 0.00456762077230
-      self.y = 0.99947476613078
-      self.z = 0.03208315302933
-    } else {
-      let norm = sqrt(norm2)
-      self.x = x / norm
-      self.y = y / norm
-      self.z = z / norm
-    }
+    (self.x, self.y, self.z) = S2Point.normalize(x: x, y: y, z: z)
   }
   
   init(latLng: LatLng) {
@@ -103,6 +85,17 @@ public struct S2Point {
     self.init(x: raw.x, y: raw.y, z: raw.z)
   }
   
+  static func normalize(x: Double, y: Double, z: Double) -> (Double, Double, Double) {
+    let norm2 = x * x + y * y + z * z
+    guard norm2 != 0.0 else {
+      // this is different from R3Vector, instead of 0,0,0 we pick a point that's on the unit sphere
+      // but not quite on an edge so this remains stable(?)
+      return (0.00456762077230, 0.99947476613078, 0.03208315302933)
+    }
+    let norm = sqrt(norm2)
+    return (x / norm, y / norm, z / norm)
+  }
+  
   // OriginPoint returns a unique "origin" on the sphere for operations that need a fixed
   // reference point. In particular, this is the "point at infinity" used for
   // point-in-polygon testing (by counting the number of edge crossings).
@@ -111,7 +104,7 @@ public struct S2Point {
   // to avoid triggering code to handle degenerate cases (this rules out the
   // north and south poles). It should also not be on the boundary of any
   // low-level S2Cell for the same reason.
-  static let origin = S2Point(origin: true)
+  static let origin = S2Point(x: 0, y: 0, z: 0)
   
   // MARK: tests
   
@@ -236,6 +229,45 @@ public struct S2Point {
   // Angle returns the angle between v and other.
   func angle(_ point: S2Point) -> Double {
     return atan2(v.cross(point.v).norm, v.dot(point.v))
+  }
+  
+  /// Returns the exterior angle at vertex B in the triangle ABC. The
+  /// return value is positive if ABC is counterclockwise and negative otherwise.
+  /// If you imagine an ant walking from A to B to C, this is the angle that the
+  /// ant turns at vertex B (positive = left = CCW, negative = right = CW).
+  /// This quantity is also known as the "geodesic curvature" at B.
+  ///
+  /// Ensures that TurnAngle(a,b,c) == -TurnAngle(c,b,a) for all distinct
+  /// a,b,c. The result is undefined if (a == b || b == c), but is either
+  /// -Pi or Pi if (a == c). All points should be normalized.
+  static func turnAngle(a: S2Point, b: S2Point, c: S2Point) -> S1Angle {
+    // We use PointCross to get good accuracy when two points are very
+    // close together, and RobustSign to ensure that the sign is correct for
+    // turns that are close to 180 degrees.
+    let angle = a.pointCross(b).angle(b.pointCross(c))
+    // Don't return RobustSign * angle because it is legal to have (a == c).
+    if S2Point.robustSign(a, b, c) == .counterClockwise {
+      return angle
+    }
+    return -angle
+  }
+  
+  /// Rotates the given point about the given axis by the given angle. p and
+  /// axis must be unit length; angle has no restrictions (e.g., it can be
+  /// positive, negative, greater than 360 degrees, etc).
+  func rotate(p: S2Point, axis: S2Point, angle: S1Angle) -> S2Point {
+    // Let M be the plane through P that is perpendicular to axis, and let
+    // center be the point where M intersects axis. We construct a
+    // right-handed orthogonal frame (dx, dy, center) such that dx is the
+    // vector from center to P, and dy has the same length as dx. The
+    // result can then be expressed as (cos(angle)*dx + sin(angle)*dy + center).
+    let center = axis.mul(p.dot(axis))
+    let dx = p.v.sub(center)
+    let dy = axis.cross(p)
+    // Mathematically the result is unit length, but normalization is necessary
+    // to ensure that numerical errors don't accumulate.
+    let v = dx.mul(cos(angle)).add(dy.mul(sin(angle))).add(center)
+    return S2Point(raw: v)
   }
   
   // PointCross returns a Point that is orthogonal to both p and op. This is similar to
@@ -511,23 +543,23 @@ public struct S2Point {
     return 4.0 * atan(sqrt(max(0.0, tan(0.5*s) * tan(0.5*(s-sa)) * tan(0.5*(s-sb)) * tan(0.5*(s-sc)))))
   }
 
-  // TrueCentroid returns the true centroid of the spherical triangle ABC multiplied by the
-  // signed area of spherical triangle ABC. The result is not normalized.
-  // The reasons for multiplying by the signed area are (1) this is the quantity
-  // that needs to be summed to compute the centroid of a union or difference of triangles,
-  // and (2) it's actually easier to calculate this way. All points must have unit length.
-  //
-  // The true centroid (mass centroid) is defined as the surface integral
-  // over the spherical triangle of (x,y,z) divided by the triangle area.
-  // This is the point that the triangle would rotate around if it was
-  // spinning in empty space.
-  //
-  // The best centroid for most purposes is the true centroid. Unlike the
-  // planar and surface centroids, the true centroid behaves linearly as
-  // regions are added or subtracted. That is, if you split a triangle into
-  // pieces and compute the average of their centroids (weighted by triangle
-  // area), the result equals the centroid of the original triangle. This is
-  // not true of the other centroids.
+  /// Returns the true centroid of the spherical triangle ABC multiplied by the
+  /// signed area of spherical triangle ABC. The result is not normalized.
+  /// The reasons for multiplying by the signed area are (1) this is the quantity
+  /// that needs to be summed to compute the centroid of a union or difference of triangles,
+  /// and (2) it's actually easier to calculate this way. All points must have unit length.
+  ///
+  /// The true centroid (mass centroid) is defined as the surface integral
+  /// over the spherical triangle of (x,y,z) divided by the triangle area.
+  /// This is the point that the triangle would rotate around if it was
+  /// spinning in empty space.
+  ///
+  /// The best centroid for most purposes is the true centroid. Unlike the
+  /// planar and surface centroids, the true centroid behaves linearly as
+  /// regions are added or subtracted. That is, if you split a triangle into
+  /// pieces and compute the average of their centroids (weighted by triangle
+  /// area), the result equals the centroid of the original triangle. This is
+  /// not true of the other centroids.
   static func trueCentroid(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> R3Vector {
     var ra = 1.0
     let sa = b.distance(c)
@@ -564,26 +596,59 @@ public struct S2Point {
     return R3Vector(x: y.cross(z).dot(r), y: z.cross(x).dot(r), z: x.cross(y).dot(r)).mul(0.5)
   }
 
-  // PlanarCentroid returns the centroid of the planar triangle ABC, which is not normalized.
-  // It can be normalized to unit length to obtain the "surface centroid" of the corresponding
-  // spherical triangle, i.e. the intersection of the three medians. However,
-  // note that for large spherical triangles the surface centroid may be
+  /// Returns the centroid of the planar triangle ABC, which is not normalized.
+  /// It can be normalized to unit length to obtain the "surface centroid" of the corresponding
+  /// spherical triangle, i.e. the intersection of the three medians. However,
+  /// note that for large spherical triangles the surface centroid may be
   // nowhere near the intuitive "center" (see example in TrueCentroid comments).
-  //
-  // Note that the surface centroid may be nowhere near the intuitive
-  // "center" of a spherical triangle. For example, consider the triangle
-  // with vertices A=(1,eps,0), B=(0,0,1), C=(-1,eps,0) (a quarter-sphere).
-  // The surface centroid of this triangle is at S=(0, 2*eps, 1), which is
-  // within a distance of 2*eps of the vertex B. Note that the median from A
-  // (the segment connecting A to the midpoint of BC) passes through S, since
-  // this is the shortest path connecting the two endpoints. On the other
-  // hand, the true centroid is at M=(0, 0.5, 0.5), which when projected onto
-  // the surface is a much more reasonable interpretation of the "center" of
-  // this triangle.
+  ///
+  /// Note that the surface centroid may be nowhere near the intuitive
+  /// "center" of a spherical triangle. For example, consider the triangle
+  /// with vertices A=(1,eps,0), B=(0,0,1), C=(-1,eps,0) (a quarter-sphere).
+  /// The surface centroid of this triangle is at S=(0, 2*eps, 1), which is
+  /// within a distance of 2*eps of the vertex B. Note that the median from A
+  /// (the segment connecting A to the midpoint of BC) passes through S, since
+  /// this is the shortest path connecting the two endpoints. On the other
+  /// hand, the true centroid is at M=(0, 0.5, 0.5), which when projected onto
+  /// the surface is a much more reasonable interpretation of the "center" of
+  /// this triangle.
   static func planarCentroid(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Point {
     return S2Point(raw: a.v.add(b.v).add(c.v).mul(1.0 / 3.0))
   }
 
+  /// Constructs a ChordAngle corresponding to the distance
+  /// between the two given points. The points must be unit length.
+  func chordAngleBetweenPoints(x: S2Point, y: S2Point) -> ChordAngle {
+    return ChordAngle(value: min(4.0, (x - y).norm2))
+  }
+  
+  // regularPoints generates a slice of points shaped as a regular polygon with
+  // the numVertices vertices, all located on a circle of the specified angular radius
+  // around the center. The radius is the actual distance from center to each vertex.
+  static func regularPoints(center: S2Point, radius: S1Angle, numVertices: Int) -> [S2Point] {
+    return S2Point.regularPointsForFrame(frame: Matrix.getFrame(center), radius: radius, numVertices: numVertices)
+  }
+  
+  // regularPointsForFrame generates a slice of points shaped as a regular polygon
+  // with numVertices vertices, all on a circle of the specified angular radius around
+  // the center. The radius is the actual distance from the center to each vertex.
+  static func regularPointsForFrame(frame: Matrix, radius: S1Angle, numVertices: Int) -> [S2Point] {
+    // We construct the loop in the given frame coordinates, with the center at
+    // (0, 0, 1). For a loop of radius r, the loop vertices have the form
+    // (x, y, z) where x^2 + y^2 = sin(r) and z = cos(r). The distance on the
+    // sphere (arc length) from each vertex to the center is acos(cos(r)) = r.
+    let z = cos(radius)
+    let r = sin(radius)
+    let radianStep = 2 * .pi / Double(numVertices)
+    var vertices: [S2Point] = []
+    for i in 0..<numVertices {
+      let angle = Double(i) * radianStep
+      let p = S2Point(x: r * cos(angle), y: r * sin(angle), z: z)
+      vertices.append(Matrix.fromFrame(frame, point: p))
+    }
+    return vertices
+  }
+  
   // MARK: lat lng
   
   /// Latitude

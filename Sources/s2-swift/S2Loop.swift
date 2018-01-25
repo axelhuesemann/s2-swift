@@ -25,7 +25,7 @@ import Foundation
 /// and FullLoop).
 public struct S2Loop: Shape, S2RegionType {
   
-  let vertices: [S2Point]
+  var vertices: [S2Point]
   
   // originInside keeps a precomputed value whether this loop contains the origin
   // versus computing from the set of vertices every time.
@@ -65,7 +65,8 @@ public struct S2Loop: Shape, S2RegionType {
   /// 1 point is a special empty or full, depending on it being in the northern hemisphere or not
   /// 0 or 2 points are incomplete loops
   init(points: [S2Point]) {
-    let (originInside, bound, subregionBound) = S2Loop.computeBounds(vertices: points)
+    let originInside = S2Loop.computeOrigin(vertices: points)
+    let (bound, subregionBound) = S2Loop.computeBounds(vertices: points, originInside: originInside)
     self.init(vertices: points, originInside: originInside, bound: bound, subregionBound: subregionBound)
   }
   
@@ -80,11 +81,83 @@ public struct S2Loop: Shape, S2RegionType {
   /// (i.e., the covering will include a layer of neighboring cells).
   init(cell: Cell) {
     let points = (0..<4).map { cell.vertex($0) }
-    let (originInside, bound, subregionBound) = S2Loop.computeBounds(vertices: points)
+    let originInside = S2Loop.computeOrigin(vertices: points)
+    let (bound, subregionBound) = S2Loop.computeBounds(vertices: points, originInside: originInside)
     self.init(vertices: points, originInside: originInside, bound: bound, subregionBound: subregionBound)
   }
 
-  static func computeBounds(vertices: [S2Point]) -> (originInside: Bool, bound: S2Rect, subregionBound: S2Rect) {
+  static func computeOrigin(vertices: [S2Point]) -> Bool {
+    switch vertices.count {
+    case 1:
+      // this is the special empty or full loop
+      // the origin depends on if the vertex is in the southern hemisphere or not.
+      return vertices[0].z < 0
+    case 0, 2:
+      // these are incomplete loops
+      return false
+    default:
+      // Point containment testing is done by counting edge crossings starting
+      // at a fixed point on the sphere (OriginPoint). We need to know whether
+      // the reference point (OriginPoint) is inside or outside the loop before
+      // we can construct the S2ShapeIndex. We do this by first guessing that
+      // it is outside, and then seeing whether we get the correct containment
+      // result for vertex 1. If the result is incorrect, the origin must be
+      // inside the loop.
+      // A loop with consecutive vertices A,B,C contains vertex B if and only if
+      // the fixed vector R = B.Ortho is contained by the wedge ABC. The
+      // wedge is closed at A and open at C, i.e. the point B is inside the loop
+      // if A = R but not if C = R. This convention is required for compatibility
+      // with VertexCrossing. (Note that we can't use OriginPoint
+      // as the fixed vector because of the possibility that B == OriginPoint.)
+      let ortho = S2Point(raw: vertices[1].v.ortho())
+      let v1Inside = S2Point.orderedCCW(ortho, vertices[0], vertices[2], vertices[1])
+      return v1Inside != S2Loop.contains(vertices[1], vertices: vertices, originInside: false)
+    }
+  }
+  
+  static func computeBounds(vertices: [S2Point], originInside: Bool) -> (bound: S2Rect, subregionBound: S2Rect) {
+    //
+    switch vertices.count {
+    case 1:
+      // this is the special empty or full loop
+      let bound = originInside ? S2Rect.full : S2Rect.empty
+      return (bound: bound, subregionBound: bound)
+    case 0, 2:
+      // these are incomplete loops
+      return (bound: S2Rect.empty, subregionBound: S2Rect.empty)
+    default: break
+    }
+    // We *must* call initBound before initIndex, because initBound calls
+    // ContainsPoint(s2.Point), and ContainsPoint(s2.Point) does a bounds check whenever the
+    // index is not fresh (i.e., the loop has been added to the index but the
+    // index has not been updated yet).
+    // The bounding rectangle of a loop is not necessarily the same as the
+    // bounding rectangle of its vertices. First, the maximal latitude may be
+    // attained along the interior of an edge. Second, the loop may wrap
+    // entirely around the sphere (e.g. a loop that defines two revolutions of a
+    // candy-cane stripe). Third, the loop may include one or both poles.
+    // Note that a small clockwise loop near the equator contains both poles.
+    var bounder = RectBounder()
+    for p in vertices {
+      bounder.add(point: p)
+    }
+    bounder.add(point: vertices[0])
+    var b = bounder.rectBound()
+    if S2Loop.contains(S2Point(x: 0, y: 0, z: 1), vertices: vertices, originInside: originInside) {
+      b = S2Rect(lat: R1Interval(lo: b.lat.lo, hi: .pi / 2.0), lng: S1Interval.full)
+    }
+    // If a loop contains the south pole, then either it wraps entirely
+    // around the sphere (full longitude range), or it also contains the
+    // north pole in which case b.Lng.isFull due to the test above.
+    // Either way, we only need to do the south pole containment test if
+    // b.Lng.isFull.
+    if b.lng.isFull && S2Loop.contains(S2Point(x: 0, y: 0, z: -1), vertices: vertices, originInside: originInside) {
+      b = S2Rect(lat: R1Interval(lo: -.pi / 2.0, hi: b.lat.hi), lng: S1Interval.full)
+    }
+    return (bound: b, subregionBound: b.expandForSubregions())
+  }
+  
+  static func xcomputeBounds(vertices: [S2Point]) -> (originInside: Bool, bound: S2Rect, subregionBound: S2Rect) {
     //
     switch vertices.count {
     case 1:
@@ -441,74 +514,181 @@ public struct S2Loop: Shape, S2RegionType {
     if vertices.count < 3 {
       return originInside
     }
-    // TODO: Move to bruteForceContains and update with ShapeIndex when available.
-    let origin = S2Point.origin
-    var inside = originInside
-    var crosser = EdgeCrosser(a: origin, b: point, c: vertices[0])
-    for i in 1..<vertices.count {
-      inside = inside != crosser.isEdgeOrVertexChainCrossing(d: vertices[i])
+    // For small loops, and during initial construction, it is faster to just
+    // check all the crossing.
+    let maxBruteForceVertices = 32
+    if vertices.count < maxBruteForceVertices { //} || index == nil {
+      return bruteForceContains(point)
     }
-    // test the closing edge of the loop last
-    inside = inside != crosser.isEdgeOrVertexChainCrossing(d: vertices[0])
-    return inside
+    // Otherwise, look up the point in the index.
+    var it = index.iterator()
+    if !it.locate(point: point) {
+      return false
+    }
+    return iteratorContains(iterator: it, point: point)
+    // TODO: Move to bruteForceContains and update with ShapeIndex when available.
+//    let origin = S2Point.origin
+//    var inside = originInside
+//    var crosser = EdgeCrosser(a: origin, b: point, c: vertices[0])
+//    for i in 1..<vertices.count {
+//      inside = inside != crosser.isEdgeOrVertexChainCrossing(d: vertices[i])
+//    }
+//    // test the closing edge of the loop last
+//    inside = inside != crosser.isEdgeOrVertexChainCrossing(d: vertices[0])
+//    return inside
   }
 
   // MARK: intersects / contains Cell
   
   /// Reports whether the loop contains the given cell
   public func contains(_ cell: Cell) -> Bool {
-    let cellVertices = (0..<4).map { cell.vertex($0) }
-    // if the loop does not contain all cell vertices, return false
-    for k in 0..<4 {
-      if !contains(cellVertices[k]) {
-        return false
-      }
+    var it = index.iterator()
+    let relation = it.locate(cellId: cell.id)
+    // If "target" is disjoint from all index cells, it is not contained.
+    // Similarly, if "target" is subdivided into one or more index cells then it
+    // is not contained, since index cells are subdivided only if they (nearly)
+    // intersect a sufficient number of edges.  (But note that if "target" itself
+    // is an index cell then it may be contained, since it could be a cell with
+    // no edges in the loop interior.)
+    if relation != .indexed {
+      return false
     }
-    // if there are any edge crossing, it is not containing
-    for j in 0..<4 {
-      var crosser = EdgeCrosser(a: cellVertices[j], b: cellVertices[(j+1)&3], c: vertices[0])
-      for i in 1..<vertices.count {
-        if crosser.chainCrossingSign(d: vertices[i]) != .doNotCross {
-          // There is a proper crossing, or two vertices were the same.
-          return false
-        }
-      }
+    // Otherwise check if any edges intersect "target".
+    if boundaryApproxIntersects(iterator: it, cell: cell) {
+      return false
     }
-    return true
+    // Otherwise check if the loop contains the center of "target".
+    return iteratorContains(iterator: it, point: cell.center())
+    // old implementation
+//    let cellVertices = (0..<4).map { cell.vertex($0) }
+//    // if the loop does not contain all cell vertices, return false
+//    for k in 0..<4 {
+//      if !contains(cellVertices[k]) {
+//        return false
+//      }
+//    }
+//    // if there are any edge crossing, it is not containing
+//    for j in 0..<4 {
+//      var crosser = EdgeCrosser(a: cellVertices[j], b: cellVertices[(j+1)&3], c: vertices[0])
+//      for i in 1..<vertices.count {
+//        if crosser.chainCrossingSign(d: vertices[i]) != .doNotCross {
+//          // There is a proper crossing, or two vertices were the same.
+//          return false
+//        }
+//      }
+//    }
+//    return true
   }
 
   /// Reports whether the loop intersects the cell
   public func intersects(_ cell: Cell) -> Bool {
-    let cellVertices = (0..<4).map { cell.vertex($0) }
-    // intersects if the loop contains any cell vertex
-    for k in 0..<4 {
-      let vertex = cell.vertex(k)
-      if contains(vertex) {
+    var it = index.iterator()
+    let relation = it.locate(cellId: cell.id)
+    // If target does not overlap any index cell, there is no intersection.
+    if relation == .disjoint {
+      return false
+    }
+    // If target is subdivided into one or more index cells, there is an
+    // intersection to within the ShapeIndex error bound (see Contains).
+    if relation == .subdivided {
+      return true
+    }
+    // If target is an index cell, there is an intersection because index cells
+    // are created only if they have at least one edge or they are entirely
+    // contained by the loop.
+    if it.cellId() == cell.id {
+      return true
+    }
+    // Otherwise check if any edges intersect target.
+    if boundaryApproxIntersects(iterator: it, cell: cell) {
+      return true
+    }
+    // Otherwise check if the loop contains the center of target.
+    return iteratorContains(iterator: it, point: cell.center())
+    // old implementation
+//    let cellVertices = (0..<4).map { cell.vertex($0) }
+//    // intersects if the loop contains any cell vertex
+//    for k in 0..<4 {
+//      let vertex = cell.vertex(k)
+//      if contains(vertex) {
+//        return true
+//      }
+//    }
+//    // intersects if any loop edge crosses with any cell edge
+//    for j in 0..<4 {
+//      var crosser = EdgeCrosser(a: cellVertices[j], b: cellVertices[(j+1)&3], c: vertices[0])
+//      for i in 1..<vertices.count {
+//        if crosser.chainCrossingSign(d: vertices[i]) != .doNotCross {
+//          // There is a proper crossing, or two vertices were the same.
+//          return true
+//        }
+//      }
+//    }
+//    // intersects if tightest rect is enclosed in cell
+//    var bounder = RectBounder()
+//    for p in vertices {
+//      bounder.add(point: p)
+//    }
+//    bounder.add(point: vertices[0])
+//    let rect = bounder.rectBound()
+//    if cell.rectBound().contains(rect) {
+//      return true
+//    }
+//    // otherwise fals
+//    return false
+  }
+  
+  /// Computes a covering of the Loop.
+  func cellUnionBound() -> CellUnion {
+    return capBound().cellUnionBound()
+  }
+  
+  /// Reports if the loop's boundary intersects target.
+  /// It may also return true when the loop boundary does not intersect target but
+  /// some edge comes within the worst-case error tolerance.
+  /// This requires that it.Locate(target) returned Indexed.
+  func boundaryApproxIntersects(iterator it: ShapeIndexIterator, cell target: Cell) -> Bool {
+    guard let aClipped = it.indexCell()?.find(shapeId: 0) else { return false }
+    // If there are no edges, there is no intersection.
+    if aClipped.edges.count == 0 {
+      return false
+    }
+    // We can save some work if target is the index cell itself.
+    if it.cellId() == target.id {
+      return true
+    }
+    // Otherwise check whether any of the edges intersect target.
+    let maxError = faceClipErrorUVCoord + intersectsRectErrorUVDist
+    let bound = target.boundUV().expanded(maxError)
+    for ai in aClipped.edges {
+      let (v0, v1, ok) = clipToPaddedFace(a: vertex(ai), b: vertex(ai + 1), f: Int(target.face), padding: maxError)
+      if ok && edgeIntersectsRect(a: v0, b: v1, r: bound) {
         return true
       }
     }
-    // intersects if any loop edge crosses with any cell edge
-    for j in 0..<4 {
-      var crosser = EdgeCrosser(a: cellVertices[j], b: cellVertices[(j+1)&3], c: vertices[0])
-      for i in 1..<vertices.count {
-        if crosser.chainCrossingSign(d: vertices[i]) != .doNotCross {
-          // There is a proper crossing, or two vertices were the same.
-          return true
+    return false
+  }
+  
+  /// Reports if the iterator that is positioned at the ShapeIndexCell
+  /// that may contain p, contains the point p.
+  func iteratorContains(iterator it: ShapeIndexIterator, point p: S2Point) -> Bool {
+    // Test containment by drawing a line segment from the cell center to the
+    // given point and counting edge crossings.
+    guard let aClipped = it.indexCell()?.find(shapeId: 0) else { return false }
+    var inside = aClipped.containsCenter
+    if aClipped.edges.count > 0 {
+      let center = it.center()
+      var crosser = EdgeCrosser(a: center, b: p)
+      var aiPrev = -2
+      for ai in aClipped.edges {
+        if ai != aiPrev + 1 {
+          crosser.restart(at: vertex(ai))
         }
+        aiPrev = ai
+        inside = inside != crosser.isEdgeOrVertexChainCrossing(d: vertex(ai + 1))
       }
     }
-    // intersects if tightest rect is enclosed in cell
-    var bounder = RectBounder()
-    for p in vertices {
-      bounder.add(point: p)
-    }
-    bounder.add(point: vertices[0])
-    let rect = bounder.rectBound()
-    if cell.rectBound().contains(rect) {
-      return true
-    }
-    // otherwise fals
-    return false
+    return inside
   }
   
   // Contains reports whether the region contained by this loop is a superset of the
@@ -559,7 +739,7 @@ public struct S2Loop: Shape, S2RegionType {
   
   // Intersects reports whether the region contained by this loop intersects the region
   // contained by the other loop.
-  func intersects(o: S2Loop) -> Bool {
+  func intersects(_ o: S2Loop) -> Bool {
     // Given two loops, A and B, A.Intersects(B) if and only if !A.Complement().Contains(B).
     // This code is similar to Contains, but is optimized for the case
     // where both loops enclose less than half of the sphere.
@@ -596,15 +776,15 @@ public struct S2Loop: Shape, S2RegionType {
     return false
   }
   
-  // containsNonCrossingBoundary reports whether given two loops whose boundaries
-  // do not cross (see compareBoundary), if this loop contains the boundary of the
-  // other loop. If reverse is true, the boundary of the other loop is reversed
-  // first (which only affects the result when there are shared edges). This method
-  // is cheaper than compareBoundary because it does not test for edge intersections.
-  //
-  // This function requires that neither loop is empty, and that if the other is full,
-  // then reverse == false.
-  func containsNonCrossingBoundary(other: S2Loop, reverseOther: Bool) -> Bool {
+  /// Reports whether given two loops whose boundaries
+  /// do not cross (see compareBoundary), if this loop contains the boundary of the
+  /// other loop. If reverse is true, the boundary of the other loop is reversed
+  /// first (which only affects the result when there are shared edges). This method
+  /// is cheaper than compareBoundary because it does not test for edge intersections.
+  ///
+  /// This function requires that neither loop is empty, and that if the other is full,
+  /// then reverse == false.
+  func containsNonCrossingBoundary(_ other: S2Loop, reverse reverseOther: Bool) -> Bool {
     // The bounds must intersect for containment.
     if !bound.intersects(other.bound) {
       return false
@@ -616,7 +796,7 @@ public struct S2Loop: Shape, S2RegionType {
     if other.isFull {
       return false
     }
-    guard let m = findVertex(other.vertex(0)) else {
+    guard let m = find(vertex: other.vertex(0)) else {
       // Since the other loops vertex 0 is not shared, we can check if this contains it.
       return contains(other.vertex(0))
     }
@@ -624,9 +804,9 @@ public struct S2Loop: Shape, S2RegionType {
     return wedgeContainsSemiwedge(a0: vertex(m-1), ab1: vertex(m), a2: vertex(m+1), b2: other.vertex(1), reverse: reverseOther)
   }
 
-  // findVertex returns the index of the vertex at the given Point in the range
-  // 1..numVertices, and a boolean indicating if a vertex was found.
-  func findVertex(_ p: S2Point) -> Int? {
+  /// Returns the index of the vertex at the given Point in the range
+  /// 1..numVertices, and a boolean indicating if a vertex was found.
+  func find(vertex p: S2Point) -> Int? {
     if vertices.count < 10 {
       // Exhaustive search for loops below a small threshold.
       for i in 1...vertices.count {
@@ -655,12 +835,438 @@ public struct S2Loop: Shape, S2RegionType {
     }
     return nil
   }
+ 
+  // MARK:
+  
+  /// Creates a loop with the given number of vertices, all
+  /// located on a circle of the specified radius around the given center.
+  static func regularLoop(center: S2Point, radius: S1Angle, numVertices: Int) -> S2Loop {
+    return S2Loop.regularLoopForFrame(frame: Matrix.getFrame(center), radius: radius, numVertices: numVertices)
+  }
+  
+  /// Creates a loop centered around the z-axis of the given
+  /// coordinate frame, with the first vertex in the direction of the positive x-axis.
+  static func regularLoopForFrame(frame: Matrix, radius: S1Angle, numVertices: Int) -> S2Loop {
+    return S2Loop(points: S2Point.regularPointsForFrame(frame: frame, radius: radius, numVertices: numVertices))
+  }
+
+  // MARK:
+  
+  /// Returns a first index and a direction (either +1 or -1)
+  /// such that the vertex sequence (first, first+dir, ..., first+(n-1)*dir) does
+  /// not change when the loop vertex order is rotated or inverted. This allows the
+  /// loop vertices to be traversed in a canonical order. The return values are
+  /// chosen such that (first, ..., first+n*dir) are in the range [0, 2*n-1] as
+  /// expected by the Vertex method.
+  func canonicalFirstVertex() -> (firstIdx: Int, direction: Int) {
+    var firstIdx = 0
+    let n = vertices.count
+    for i in 1..<n {
+      if vertex(i) < vertex(firstIdx) {
+        firstIdx = i
+      }
+    }
+    // 0 <= firstIdx <= n-1, so (firstIdx+n*dir) <= 2*n-1.
+    if vertex(firstIdx + 1) < vertex(firstIdx + n - 1) {
+      return (firstIdx, 1)
+    }
+    // n <= firstIdx <= 2*n-1, so (firstIdx+n*dir) >= 0.
+    firstIdx += n
+    return (firstIdx, -1)
+  }
+  
+  // TurningAngle returns the sum of the turning angles at each vertex. The return
+  // value is positive if the loop is counter-clockwise, negative if the loop is
+  // clockwise, and zero if the loop is a great circle. Degenerate and
+  // nearly-degenerate loops are handled consistently with Sign. So for example,
+  // if a loop has zero area (i.e., it is a very small CCW loop) then the turning
+  // angle will always be negative.
+  //
+  // This quantity is also called the "geodesic curvature" of the loop.
+  func turningAngle() -> Double {
+    // For empty and full loops, we return the limit value as the loop area
+    // approaches 0 or 4*Pi respectively.
+    if isEmptyOrFull() {
+      if containsOrigin() {
+        return -2 * .pi
+      }
+      return 2 * .pi
+    }
+    // Don't crash even if the loop is not well-defined.
+    if vertices.count < 3 {
+      return 0
+    }
+    // To ensure that we get the same result when the vertex order is rotated,
+    // and that the result is negated when the vertex order is reversed, we need
+    // to add up the individual turn angles in a consistent order. (In general,
+    // adding up a set of numbers in a different order can change the sum due to
+    // rounding errors.)
+    //
+    // Furthermore, if we just accumulate an ordinary sum then the worst-case
+    // error is quadratic in the number of vertices. (This can happen with
+    // spiral shapes, where the partial sum of the turning angles can be linear
+    // in the number of vertices.) To avoid this we use the Kahan summation
+    // algorithm (http://en.wikipedia.org/wiki/Kahan_summation_algorithm).
+    var n = vertices.count
+    var (i, dir) = canonicalFirstVertex()
+    var sum = S2Point.turnAngle(a: vertex((i + n - dir) % n), b: vertex(i), c: vertex((i + dir) % n))
+    var compensation = S1Angle(0)
+    while n - 1 > 0 {
+      i += dir
+      var angle = S2Point.turnAngle(a: vertex(i - dir), b: vertex(i), c: vertex(i + dir))
+      let oldSum = sum
+      angle += compensation
+      sum += angle
+      compensation = (oldSum - sum) + angle
+      n -= 1
+    }
+    return Double(dir) * Double(sum + compensation)
+  }
+  
+  // turningAngleMaxError return the maximum error in TurningAngle. The value is not
+  // constant; it depends on the loop.
+  func turningAngleMaxError() -> Double {
+    // The maximum error can be bounded as follows:
+    //   2.24 * dblEpsilon    for RobustCrossProd(b, a)
+    //   2.24 * dblEpsilon    for RobustCrossProd(c, b)
+    //   3.25 * dblEpsilon    for Angle()
+    //   2.00 * dblEpsilon    for each addition in the Kahan summation
+    //   ------------------
+    //   9.73 * dblEpsilon
+    let maxErrorPerVertex = 9.73 * S1Interval.dblEpsilon
+    return maxErrorPerVertex * Double(vertices.count)
+  }
+  
+  // IsNormalized reports whether the loop area is at most 2*pi. Degenerate loops are
+  // handled consistently with Sign, i.e., if a loop can be
+  // expressed as the union of degenerate or nearly-degenerate CCW triangles,
+  // then it will always be considered normalized.
+  func isNormalized() -> Bool {
+    // Optimization: if the longitude span is less than 180 degrees, then the
+    // loop covers less than half the sphere and is therefore normalized.
+    if bound.lng.length < .pi {
+      return true
+    }
+    // We allow some error so that hemispheres are always considered normalized.
+    // TODO(roberts): This is no longer required by the Polygon implementation,
+    // so alternatively we could create the invariant that a loop is normalized
+    // if and only if its complement is not normalized.
+    return turningAngle() >= -turningAngleMaxError()
+  }
+  
+  // Normalize inverts the loop if necessary so that the area enclosed by the loop
+  // is at most 2*pi.
+  mutating func normalize() {
+    if !isNormalized() {
+      invert()
+    }
+  }
+  
+  // Invert reverses the order of the loop vertices, effectively complementing the
+  // region represented by the loop. For example, the loop ABCD (with edges
+  // AB, BC, CD, DA) becomes the loop DCBA (with edges DC, CB, BA, AD).
+  // Notice that the last edge is the same in both cases except that its
+  // direction has been reversed.
+  mutating func invert() {
+    index.reset()
+    if isEmptyOrFull() {
+      if isFull {
+        vertices[0] = emptyLoopPoint
+      } else {
+        vertices[0] = fullLoopPoint
+      }
+    } else {
+      // For non-special loops, reverse the slice of vertices.
+      vertices.reverse()
+    }
+    // originInside must be set correctly before building the ShapeIndex.
+    originInside = !originInside
+    if bound.lat.lo > -.pi / 2 && bound.lat.hi < .pi / 2 {
+      // The complement of this loop contains both poles.
+      bound = S2Rect.full
+      subregionBound = bound
+    } else {
+      self.originInside = S2Loop.computeOrigin(vertices: vertices)
+    }
+    index.add(shape: self)
+  }
+  
+  // ContainsNested reports whether the given loops is contained within this loop.
+  // This function does not test for edge intersections. The two loops must meet
+  // all of the Polygon requirements; for example this implies that their
+  // boundaries may not cross or have any shared edges (although they may have
+  // shared vertices).
+  func containsNested(other: S2Loop) -> Bool {
+    if !subregionBound.contains(other.bound) {
+      return false
+    }
+    // Special cases to handle either loop being empty or full.  Also bail out
+    // when B has no vertices to avoid heap overflow on the vertex(1) call
+    // below.  (This method is called during polygon initialization before the
+    // client has an opportunity to call IsValid().)
+    if isEmptyOrFull() || other.numVertices() < 2 {
+      return isFull || other.isEmpty
+    }
+    // We are given that A and B do not share any edges, and that either one
+    // loop contains the other or they do not intersect.
+    guard let m = find(vertex: other.vertex(1)) else {
+      // Since other.vertex(1) is not shared, we can check whether A contains it.
+      return contains(other.vertex(1))
+    }
+    // Check whether the edge order around other.Vertex(1) is compatible with
+    // A containing B.
+    return wedgeContains(a0: vertex(m - 1), ab1: vertex(m), a2: vertex(m + 1), b0: other.vertex(0), b2: other.vertex(2))
+  }
+
+  // MARK:
+  
+  /// Computes the oriented surface integral of some quantity f(x)
+  /// over the loop interior, given a function f(A,B,C) that returns the
+  /// corresponding integral over the spherical triangle ABC. Here "oriented
+  /// surface integral" means:
+  /// (1) f(A,B,C) must be the integral of f if ABC is counterclockwise,
+  ///     and the integral of -f if ABC is clockwise.
+  /// (2) The result of this function is *either* the integral of f over the
+  ///     loop interior, or the integral of (-f) over the loop exterior.
+  /// Note that there are at least two common situations where it easy to work
+  /// around property (2) above:
+  ///  - If the integral of f over the entire sphere is zero, then it doesn't
+  ///    matter which case is returned because they are always equal.
+  ///  - If f is non-negative, then it is easy to detect when the integral over
+  ///    the loop exterior has been returned, and the integral over the loop
+  ///    interior can be obtained by adding the integral of f over the entire
+  ///    unit sphere (a constant) to the result.
+  /// Any changes to this method may need corresponding changes to surfaceIntegralPoint as well.
+  func surfaceIntegral(f: (S2Point, S2Point, S2Point) -> Double) -> Double {
+    // We sum f over a collection T of oriented triangles, possibly
+    // overlapping. Let the sign of a triangle be +1 if it is CCW and -1
+    // otherwise, and let the sign of a point x be the sum of the signs of the
+    // triangles containing x. Then the collection of triangles T is chosen
+    // such that either:
+    //  (1) Each point in the loop interior has sign +1, and sign 0 otherwise; or
+    //  (2) Each point in the loop exterior has sign -1, and sign 0 otherwise.
+    // The triangles basically consist of a fan from vertex 0 to every loop
+    // edge that does not include vertex 0. These triangles will always satisfy
+    // either (1) or (2). However, what makes this a bit tricky is that
+    // spherical edges become numerically unstable as their length approaches
+    // 180 degrees. Of course there is not much we can do if the loop itself
+    // contains such edges, but we would like to make sure that all the triangle
+    // edges under our control (i.e., the non-loop edges) are stable. For
+    // example, consider a loop around the equator consisting of four equally
+    // spaced points. This is a well-defined loop, but we cannot just split it
+    // into two triangles by connecting vertex 0 to vertex 2.
+    // We handle this type of situation by moving the origin of the triangle fan
+    // whenever we are about to create an unstable edge. We choose a new
+    // location for the origin such that all relevant edges are stable. We also
+    // create extra triangles with the appropriate orientation so that the sum
+    // of the triangle signs is still correct at every point.
+    // The maximum length of an edge for it to be considered numerically stable.
+    // The exact value is fairly arbitrary since it depends on the stability of
+    // the function f. The value below is quite conservative but could be
+    // reduced further if desired.
+    let maxLength = .pi - 1e-5
+    var sum = 0.0
+    var origin = vertex(0)
+    for i in 1..<vertices.count - 1 {
+      // Let V_i be vertex(i), let O be the current origin, and let length(A,B)
+      // be the length of edge (A,B). At the start of each loop iteration, the
+      // "leading edge" of the triangle fan is (O,V_i), and we want to extend
+      // the triangle fan so that the leading edge is (O,V_i+1).
+      // Invariants:
+      //  1. length(O,V_i) < maxLength for all (i > 1).
+      //  2. Either O == V_0, or O is approximately perpendicular to V_0.
+      //  3. "sum" is the oriented integral of f over the area defined by
+      //     (O, V_0, V_1, ..., V_i).
+      if vertex(i + 1).angle(origin) > maxLength {
+        // We are about to create an unstable edge, so choose a new origin O'
+        // for the triangle fan.
+        let oldOrigin = origin
+        if origin == vertex(0) {
+          // The following point is well-separated from V_i and V_0 (and
+          // therefore V_i+1 as well).
+          origin = vertex(0).pointCross(vertex(i))
+        } else if vertex(i).angle(vertex(0)) < maxLength {
+          // All edges of the triangle (O, V_0, V_i) are stable, so we can
+          // revert to using V_0 as the origin.
+          origin = vertex(0)
+        } else {
+          // (O, V_i+1) and (V_0, V_i) are antipodal pairs, and O and V_0 are
+          // perpendicular. Therefore V_0.CrossProd(O) is approximately
+          // perpendicular to all of {O, V_0, V_i, V_i+1}, and we can choose
+          // this point O' as the new origin.
+          origin = S2Point(raw: vertex(0).cross(oldOrigin))
+          // Advance the edge (V_0,O) to (V_0,O').
+          sum += f(vertex(0), oldOrigin, origin)
+        }
+        // Advance the edge (O,V_i) to (O',V_i).
+        sum += f(oldOrigin, vertex(i), origin)
+      }
+      // Advance the edge (O,V_i) to (O,V_i+1).
+      sum += f(origin, vertex(i), vertex(i + 1))
+    }
+    // If the origin is not V_0, we need to sum one more triangle.
+    if origin != vertex(0) {
+      // Advance the edge (O,V_n-1) to (O,V_0).
+      sum += f(origin, vertex(vertices.count - 1), vertex(0))
+    }
+    return sum
+  }
+  
+  /// Mirrors the surfaceIntegralFloat64 method but over Points;
+  /// see that method for commentary. The C++ version uses a templated method.
+  /// Any changes to this method may need corresponding changes to surfaceIntegralFloat64 as well.
+  func surfaceIntegral(f: (S2Point, S2Point, S2Point) -> R3Vector) -> S2Point {
+    let maxLength = .pi - 1e-5
+    var sum = R3Vector(x: 0, y: 0, z: 0)
+    var origin = vertex(0)
+    for i in 1..<vertices.count - 1 {
+      if vertex(i + 1).angle(origin) > maxLength {
+        let oldOrigin = origin
+        if origin == vertex(0) {
+          origin = vertex(0).pointCross(vertex(i))
+        } else if vertex(i).angle(vertex(0)) < maxLength {
+          origin = vertex(0)
+        } else {
+          origin = S2Point(raw: vertex(0).cross(oldOrigin))
+          sum = sum.add(f(vertex(0), oldOrigin, origin))
+        }
+        sum = sum.add(f(oldOrigin, vertex(i), origin))
+      }
+      sum = sum.add(f(origin, vertex(i), vertex(i + 1)))
+    }
+    if origin != vertex(0) {
+      sum = sum.add(f(origin, vertex(vertices.count - 1), vertex(0)))
+    }
+    return S2Point(raw: sum)
+  }
+  
+  /// Returns the area of the loop interior, i.e. the region on the left side of
+  /// the loop. The return value is between 0 and 4*pi. (Note that the return
+  /// value is not affected by whether this loop is a "hole" or a "shell".)
+  func area() -> Double {
+    // It is suprisingly difficult to compute the area of a loop robustly. The
+    // main issues are (1) whether degenerate loops are considered to be CCW or
+    // not (i.e., whether their area is close to 0 or 4*pi), and (2) computing
+    // the areas of small loops with good relative accuracy.
+    //
+    // With respect to degeneracies, we would like Area to be consistent
+    // with ContainsPoint in that loops that contain many points
+    // should have large areas, and loops that contain few points should have
+    // small areas. For example, if a degenerate triangle is considered CCW
+    // according to s2predicates Sign, then it will contain very few points and
+    // its area should be approximately zero. On the other hand if it is
+    // considered clockwise, then it will contain virtually all points and so
+    // its area should be approximately 4*pi.
+    //
+    // More precisely, let U be the set of Points for which IsUnitLength
+    // is true, let P(U) be the projection of those points onto the mathematical
+    // unit sphere, and let V(P(U)) be the Voronoi diagram of the projected
+    // points. Then for every loop x, we would like Area to approximately
+    // equal the sum of the areas of the Voronoi regions of the points p for
+    // which x.ContainsPoint(p) is true.
+    //
+    // The second issue is that we want to compute the area of small loops
+    // accurately. This requires having good relative precision rather than
+    // good absolute precision. For example, if the area of a loop is 1e-12 and
+    // the error is 1e-15, then the area only has 3 digits of accuracy. (For
+    // reference, 1e-12 is about 40 square meters on the surface of the earth.)
+    // We would like to have good relative accuracy even for small loops.
+    //
+    // To achieve these goals, we combine two different methods of computing the
+    // area. This first method is based on the Gauss-Bonnet theorem, which says
+    // that the area enclosed by the loop equals 2*pi minus the total geodesic
+    // curvature of the loop (i.e., the sum of the "turning angles" at all the
+    // loop vertices). The big advantage of this method is that as long as we
+    // use Sign to compute the turning angle at each vertex, then
+    // degeneracies are always handled correctly. In other words, if a
+    // degenerate loop is CCW according to the symbolic perturbations used by
+    // Sign, then its turning angle will be approximately 2*pi.
+    //
+    // The disadvantage of the Gauss-Bonnet method is that its absolute error is
+    // about 2e-15 times the number of vertices (see turningAngleMaxError).
+    // So, it cannot compute the area of small loops accurately.
+    //
+    // The second method is based on splitting the loop into triangles and
+    // summing the area of each triangle. To avoid the difficulty and expense
+    // of decomposing the loop into a union of non-overlapping triangles,
+    // instead we compute a signed sum over triangles that may overlap (see the
+    // comments for surfaceIntegral). The advantage of this method
+    // is that the area of each triangle can be computed with much better
+    // relative accuracy (using l'Huilier's theorem). The disadvantage is that
+    // the result is a signed area: CCW loops may yield a small positive value,
+    // while CW loops may yield a small negative value (which is converted to a
+    // positive area by adding 4*pi). This means that small errors in computing
+    // the signed area may translate into a very large error in the result (if
+    // the sign of the sum is incorrect).
+    //
+    // So, our strategy is to combine these two methods as follows. First we
+    // compute the area using the "signed sum over triangles" approach (since it
+    // is generally more accurate). We also estimate the maximum error in this
+    // result. If the signed area is too close to zero (i.e., zero is within
+    // the error bounds), then we double-check the sign of the result using the
+    // Gauss-Bonnet method. (In fact we just call IsNormalized, which is
+    // based on this method.) If the two methods disagree, we return either 0
+    // or 4*pi based on the result of IsNormalized. Otherwise we return the
+    // area that we computed originally.
+    if isEmptyOrFull() {
+      if containsOrigin() {
+        return 4 * .pi
+      }
+      return 0
+    }
+    var area = surfaceIntegral(f: S2Point.signedArea)
+    // TODO(roberts): This error estimate is very approximate. There are two
+    // issues: (1) SignedArea needs some improvements to ensure that its error
+    // is actually never higher than GirardArea, and (2) although the number of
+    // triangles in the sum is typically N-2, in theory it could be as high as
+    // 2*N for pathological inputs. But in other respects this error bound is
+    // very conservative since it assumes that the maximum error is achieved on
+    // every triangle.
+    let maxError = turningAngleMaxError()
+    // The signed area should be between approximately -4*pi and 4*pi.
+    if area < 0 {
+      // We have computed the negative of the area of the loop exterior.
+      area += 4 * .pi
+    }
+    if area > 4 * .pi {
+      area = 4 * .pi
+    }
+    if area < 0 {
+      area = 0
+    }
+    // If the area is close enough to zero or 4*pi so that the loop orientation
+    // is ambiguous, then we compute the loop orientation explicitly.
+    if area < maxError && !isNormalized() {
+      return 4 * .pi
+    } else if area > (4 * .pi - maxError) && isNormalized() {
+      return 0
+    }
+    return area
+  }
+
+  
+  /// Returns the true centroid of the loop multiplied by the area of the
+  /// loop. The result is not unit length, so you may want to normalize it. Also
+  /// note that in general, the centroid may not be contained by the loop.
+  /// We prescale by the loop area for two reasons: (1) it is cheaper to
+  /// compute this way, and (2) it makes it easier to compute the centroid of
+  /// more complicated shapes (by splitting them into disjoint regions and
+  /// adding their centroids).
+  /// Note that the return value is not affected by whether this loop is a
+  /// "hole" or a "shell".
+  func centroid() -> S2Point {
+    // surfaceIntegralPoint() returns either the integral of position over loop
+    // interior, or the negative of the integral of position over the loop
+    // exterior. But these two values are the same (!), because the integral of
+    // position over the entire sphere is (0, 0, 0).
+    return surfaceIntegral(f: S2Point.trueCentroid)
+  }
   
 }
 
 // MARK: Loop Relations
 
-// crossingTarget is an enum representing the possible crossing target cases for relations.
+/// Representing the possible crossing target cases for relations.
 enum CrossingTarget: Int {
   case dontCare, dontCross, cross
 }

@@ -66,7 +66,7 @@ public struct S2CellMetric {
   // MinLevel returns the minimum level such that the metric is at most
   // the given value, or maxLevel (30) if there is no such level.
   func minLevel(_ val: Double) -> Int {
-    if val < 0 {
+    if val <= 0 {
       return CellId.maxLevel
     }
     let level = -(Int(logb(val / deriv)) >> (dim - 1))

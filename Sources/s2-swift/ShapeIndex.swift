@@ -79,6 +79,14 @@ extension ClippedShape {
 
 }
 
+extension ClippedShape: Equatable {
+  
+  public static func ==(lhs: ClippedShape, rhs: ClippedShape) -> Bool {
+    return lhs.shapeId == rhs.shapeId && lhs.edges == rhs.edges
+  }
+  
+}
+
 /// Stores the index contents for a particular CellId.
 struct ShapeIndexCell {
   var shapes: [ClippedShape]
@@ -97,7 +105,7 @@ extension ShapeIndexCell {
   }
 
   // add adds the given clipped shape to this index cell.
-  mutating func add(c: ClippedShape) {
+  mutating func add(_ c: ClippedShape) {
     shapes.append(c)
   }
 
@@ -344,7 +352,7 @@ extension ShapeIndexIterator {
 /// either (a) these two points are actually the same, or (b) the intervening
 /// cells in CellID order are all empty, and therefore there are no edge crossings
 /// if we follow this path from one cell to the other.
-struct Tracker {
+class Tracker {
   var isActive: Bool
   var a: S2Point
   var b: S2Point
@@ -392,7 +400,7 @@ extension Tracker {
   /// for every edge of the shape that might cross the current drawTo line.
   /// This updates the state to correspond to the new focus point.
   /// This requires shape.HasInterior
-  mutating func addShape(shapeId: Int32, containsFocus: Bool) {
+  func addShape(shapeId: Int32, containsFocus: Bool) {
     isActive = true
     if containsFocus {
       toggleShape(shapeId: shapeId)
@@ -402,14 +410,14 @@ extension Tracker {
   /// Moves the focus of the tracker to the given point. This method should
   /// only be used when it is known that there are no edge crossings between the old
   /// and new focus locations; otherwise use drawTo.
-  mutating func move(to b: S2Point) {
+  func move(to b: S2Point) {
     self.b = b
   }
 
   /// Moves the focus of the tracker to the given point. After this method is
   /// called, testEdge should be called with all edges that may cross the line
   /// segment between the old and new focus locations.
-  mutating func draw(to b: S2Point) {
+  func draw(to b: S2Point) {
     a = self.b
     self.b = b
     // TODO: the edge crosser may need an in-place Init method if this gets expensive
@@ -419,7 +427,7 @@ extension Tracker {
   /// testEdge checks if the given edge crosses the current edge, and if so, then
   /// toggle the state of the given shapeID.
   /// This requires shape to have an interior.
-  mutating func testEdge(shapeId: Int32, edge: Edge) {
+  func testEdge(shapeId: Int32, edge: Edge) {
     if crosser.isEdgeOrVertexCrossing(c: edge.v0, d: edge.v1) {
       toggleShape(shapeId: shapeId)
     }
@@ -430,7 +438,7 @@ extension Tracker {
   /// start of this cell. By using this method together with isAt, the caller
   /// can avoid calling moveTo in cases where the exit vertex of the previous cell
   /// is the same as the entry vertex of the current cell.
-  mutating func setNextCellId(nextCellId: CellId) {
+  func setNextCellId(nextCellId: CellId) {
     self.nextCellId = nextCellId.rangeMin()
   }
 
@@ -441,7 +449,7 @@ extension Tracker {
   }
 
   /// Adds or removes the given shapeID from the set of IDs it is tracking.
-  mutating func toggleShape(shapeId: Int32) {
+  func toggleShape(shapeId: Int32) {
     // Most shapeIDs slices are small, so special case the common steps.
     // If there is nothing here, add it.
     if shapeIds.count == 0 {
@@ -474,7 +482,7 @@ extension Tracker {
   /// Makes an internal copy of the state for shape ids below
   /// the given limit, and then clear the state for those shapes. This is used during
   /// incremental updates to track the state of added and removed shapes separately.
-  mutating func saveAndClearStateBefore(limitShapeId: Int32) {
+  func saveAndClearStateBefore(limitShapeId: Int32) {
     let limit = lowerBound(shapeId: limitShapeId)
     savedIds = Array(shapeIds[..<limit])
     shapeIds = Array(shapeIds[limit...])
@@ -482,7 +490,7 @@ extension Tracker {
 
   // restoreStateBefore restores the state previously saved by saveAndClearStateBefore.
   // This only affects the state for shapeIDs below "limitShapeID".
-  mutating func restoreStateBefore(limitShapeId: Int32) {
+  func restoreStateBefore(limitShapeId: Int32) {
     let limit = lowerBound(shapeId: limitShapeId)
     shapeIds = savedIds + Array(shapeIds[limit...])
     savedIds = []
@@ -558,6 +566,7 @@ public class ShapeIndex {
   //
   // This mutex protects all of following fields in the index.
 //  mu sync.RWMutex
+  let lockQueue = DispatchQueue(label: "s2-swift.ShapeIndex.LockQueue")
   // pendingAdditionsPos is the index of the first entry that has not been processed
   // via applyUpdatesInternal.
   var pendingAdditionsPos: Int32
@@ -579,7 +588,7 @@ extension ShapeIndex {
   
   // Returns an iterator for this index.
   func iterator() -> ShapeIndexIterator {
-    maybeApplyUpdates()
+//    maybeApplyUpdates()
     return ShapeIndexIterator(index: self, pos: .begin)
   }
   
@@ -663,10 +672,10 @@ extension ShapeIndex {
     // that any thread that sees a status of fresh will also see the
     // corresponding index updates.
     if status != .fresh {
-//      mu.lock()
-      applyUpdatesInternal()
-      status = .fresh
-//      mu.unlock()
+//      lockQueue.sync() {
+        applyUpdatesInternal()
+        status = .fresh
+//      }
     }
   }
 
@@ -677,14 +686,14 @@ extension ShapeIndex {
     // edge as the final index memory size. If this causes issues, add in
     // batched updating to limit the amount of items per batch to a
     // configurable memory footprint overhead.
-    var t = Tracker()
+    let t = Tracker()
     // allEdges maps a Face to a collection of faceEdges.
-    var allEdges = [[FaceEdge]]() // make([][]faceEdge, 6)
+    var allEdges = (0..<6).map { _ in [FaceEdge]() } // make([][]faceEdge, 6)
     for id in pendingAdditionsPos..<Int32(shapes.count) {
-      addShapeInternal(shapeId: id, allEdges: &allEdges, t: &t)
+      addShapeInternal(shapeId: id, allEdges: &allEdges, t: t)
     }
     for face in 0..<6 {
-      updateFaceEdges(face: face, faceEdges: allEdges[face], t: &t)
+      updateFaceEdges(face: face, faceEdges: allEdges[face], t: t)
     }
     pendingAdditionsPos = Int32(shapes.count)
     // It is the caller's responsibility to update the index status.
@@ -693,7 +702,7 @@ extension ShapeIndex {
   /// Clips all edges of the given shape to the six cube faces,
   /// adds the clipped edges to the set of allEdges, and starts tracking its
   /// interior if necessary.
-  func addShapeInternal(shapeId: Int32, allEdges: inout [[FaceEdge]], t: inout Tracker) {
+  func addShapeInternal(shapeId: Int32, allEdges: inout [[FaceEdge]], t: Tracker) {
     guard let shape = shapes[shapeId] else {
       // This shape has already been removed.
       return
@@ -740,7 +749,7 @@ extension ShapeIndex {
 
   /// Adds or removes the various edges from the index.
   /// An edge is added if shapes[id] is not nil, and removed otherwise.
-  func updateFaceEdges(face: Int, faceEdges: [FaceEdge], t: inout Tracker) {
+  func updateFaceEdges(face: Int, faceEdges: [FaceEdge], t: Tracker) {
     let numEdges = faceEdges.count
     if numEdges == 0 && t.shapeIds.count == 0 {
       return
@@ -770,15 +779,15 @@ extension ShapeIndex {
         // can save a lot of work by starting directly with that cell, but if we
         // are in the interior of at least one shape then we need to create
         // index entries for the cells we are skipping over.
-        skipCellRange(begin: faceId.rangeMin(), end: shrunkId.rangeMin(), t: &t, disjointFromIndex: disjointFromIndex)
+        skipCellRange(begin: faceId.rangeMin(), end: shrunkId.rangeMin(), t: t, disjointFromIndex: disjointFromIndex)
         pcell = PaddedCell(id: shrunkId, padding: cellPadding)
-        updateEdges(pcell: pcell, edges: &clippedEdges, t: &t, disjointFromIndex: disjointFromIndex)
-        skipCellRange(begin: shrunkId.rangeMax().next(), end: faceId.rangeMax().next(), t: &t, disjointFromIndex: disjointFromIndex)
+        updateEdges(pcell: pcell, edges: &clippedEdges, t: t, disjointFromIndex: disjointFromIndex)
+        skipCellRange(begin: shrunkId.rangeMax().next(), end: faceId.rangeMax().next(), t: t, disjointFromIndex: disjointFromIndex)
         return
       }
     }
     // Otherwise (no edges, or no shrinking is possible), subdivide normally.
-    updateEdges(pcell: pcell, edges: &clippedEdges, t: &t, disjointFromIndex: disjointFromIndex)
+    updateEdges(pcell: pcell, edges: &clippedEdges, t: t, disjointFromIndex: disjointFromIndex)
   }
 
   /// Shrinks the PaddedCell to fit within the given bounds.
@@ -797,7 +806,7 @@ extension ShapeIndex {
   
   /// Skips over the cells in the given range, creating index cells if we are
   /// currently in the interior of at least one shape.
-  func skipCellRange(begin: CellId, end: CellId, t: inout Tracker, disjointFromIndex: Bool) {
+  func skipCellRange(begin: CellId, end: CellId, t: Tracker, disjointFromIndex: Bool) {
     // If we aren't in the interior of a shape, then skipping over cells is easy.
     if t.shapeIds.count == 0 {
       return
@@ -808,14 +817,14 @@ extension ShapeIndex {
     for cellId in skipped.cellIds {
       var clippedEdges: [ClippedEdge] = []
       let pcell = PaddedCell(id: cellId, padding: cellPadding)
-      updateEdges(pcell: pcell, edges: &clippedEdges, t: &t, disjointFromIndex: disjointFromIndex)
+      updateEdges(pcell: pcell, edges: &clippedEdges, t: t, disjointFromIndex: disjointFromIndex)
     }
   }
   
   /// Adds or removes the given edges whose bounding boxes intersect a
   /// given cell. disjointFromIndex is an optimization hint indicating that cellMap
   /// does not contain any entries that overlap the given cell.
-  func updateEdges(pcell: PaddedCell, edges: inout [ClippedEdge], t: inout Tracker, disjointFromIndex: Bool) {
+  func updateEdges(pcell: PaddedCell, edges: inout [ClippedEdge], t: Tracker, disjointFromIndex: Bool) {
     // This function is recursive with a maximum recursion depth of 30 (maxLevel).
     // Incremental updates are handled as follows. All edges being added or
     // removed are combined together in edges, and all shapes with interiors
@@ -848,7 +857,7 @@ extension ShapeIndex {
       } else if r == .indexed {
         // Absorb the index cell by transferring its contents to edges and
         // deleting it. We also start tracking the interior of any new shapes.
-        absorbIndexCell(p: pcell, iter: iter, edges: &edges, t: &t)
+        absorbIndexCell(p: pcell, iter: iter, edges: &edges, t: t)
         indexCellAbsorbed = true
         disjointFromIndex = true
       } else {
@@ -859,7 +868,7 @@ extension ShapeIndex {
     // subdividing so that we can merge with those cells. Otherwise,
     // makeIndexCell checks if the number of edges is small enough, and creates
     // an index cell if possible (returning true when it does so).
-    if !disjointFromIndex || !makeIndexCell(p: pcell, edges: edges, t: &t) {
+    if !disjointFromIndex || !makeIndexCell(p: pcell, edges: edges, t: t) {
       // TODO(roberts): If it turns out to have memory problems when there
       // are 10M+ edges in the index, look into pre-allocating space so we
       // are not always appending.
@@ -931,7 +940,7 @@ extension ShapeIndex {
       for pos in 0..<4 {
         let (i, j) = pcell.childIJ(pos: pos)
         if childEdges[i][j].count > 0 || t.shapeIds.count > 0 {
-          updateEdges(pcell: PaddedCell(parent: pcell, i: i, j: j), edges: &childEdges[i][j], t: &t, disjointFromIndex: disjointFromIndex)
+          updateEdges(pcell: PaddedCell(parent: pcell, i: i, j: j), edges: &childEdges[i][j], t: t, disjointFromIndex: disjointFromIndex)
         }
       }
     }
@@ -943,7 +952,7 @@ extension ShapeIndex {
 
   /// Builds an indexCell from the given padded cell and set of edges and adds
   /// it to the index. If the cell or edges are empty, no cell is added.
-  func makeIndexCell(p: PaddedCell, edges: [ClippedEdge], t: inout Tracker) -> Bool {
+  func makeIndexCell(p: PaddedCell, edges: [ClippedEdge], t: Tracker) -> Bool {
     // If the cell is empty, no index cell is needed. (In most cases this
     // situation is detected before we get to this point, but this can happen
     // when all shapes in a cell are removed.)
@@ -987,7 +996,7 @@ extension ShapeIndex {
         t.move(to: p.entryVertex())
       }
       t.draw(to: p.center())
-      testAllEdges(edges: edges, t: &t)
+      testAllEdges(edges: edges, t: t)
     }
     // Allocate and fill a new index cell. To get the total number of shapes we
     // need to merge the shapes associated with the intersecting edges together
@@ -1035,7 +1044,7 @@ extension ShapeIndex {
     // Shift the tracker focus point to the exit vertex of this cell.
     if t.isActive && edges.count != 0 {
       t.draw(to: p.exitVertex())
-      testAllEdges(edges: edges, t: &t)
+      testAllEdges(edges: edges, t: t)
       t.setNextCellId(nextCellId: p.id.next())
     }
     return true
@@ -1133,7 +1142,7 @@ extension ShapeIndex {
   /// and/or "tracker", and then delete this cell from the index. If edges includes
   /// any edges that are being removed, this method also updates their
   /// InteriorTracker state to correspond to the exit vertex of this cell.
-  func absorbIndexCell(p: PaddedCell, iter: ShapeIndexIterator, edges: inout [ClippedEdge], t: inout Tracker) {
+  func absorbIndexCell(p: PaddedCell, iter: ShapeIndexIterator, edges: inout [ClippedEdge], t: Tracker) {
     // When we absorb a cell, we erase all the edges that are being removed.
     // However when we are finished with this cell, we want to restore the state
     // of those edges (since that is how we find all the index cells that need
@@ -1233,7 +1242,7 @@ extension ShapeIndex {
   }
 
   /// Calls the trackers testEdge on all edges from shapes that have interiors.
-  func testAllEdges(edges: [ClippedEdge], t: inout Tracker) {
+  func testAllEdges(edges: [ClippedEdge], t: Tracker) {
     for edge in edges {
       if edge.faceEdge.hasInterior {
         t.testEdge(shapeId: edge.faceEdge.shapeId, edge: edge.faceEdge.edge)

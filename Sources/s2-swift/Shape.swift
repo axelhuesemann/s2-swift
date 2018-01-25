@@ -28,7 +28,8 @@ extension Edge: Equatable, Comparable {
   }
   
   public static func <(lhs: Edge, rhs: Edge) -> Bool {
-    return lhs.v0 == rhs.v0 && lhs.v1 == rhs.v1
+    if lhs.v0 == rhs.v0 { return lhs.v1 < rhs.v1 }
+    return lhs.v0 < rhs.v0
   }
   
 }
@@ -62,7 +63,7 @@ extension ReferencePoint {
   /// contained and the origin point. It should be used when all points or no
   /// points are contained.
   init(origin: Bool, contained: Bool) {
-    self.init(point: S2Point(origin: true), contained: contained)
+    self.init(point: S2Point.origin, contained: contained)
   }
 
 }

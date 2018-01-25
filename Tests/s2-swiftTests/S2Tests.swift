@@ -382,5 +382,85 @@ func perturbedCornerOrMidpoint(p: S2Point, q: S2Point) -> S2Point {
   return a.s2
 }
 
-// TODO:
-// Most of the other s2 testing methods.
+/// A Shape representing an arbitrary set of edges. It
+/// is used for testing, but it can also be useful if you have, say, a
+/// collection of polylines and don't care about memory efficiency (since
+/// this type would store most of the vertices twice).
+struct EdgeVectorShape {
+  var edges: [Edge]
+}
+
+extension EdgeVectorShape: Shape {
+
+  /// Creates an edgeVectorShape of length 1 from the given points.
+  init(a: S2Point, b: S2Point) {
+    edges = [Edge(v0: a, v1: b)]
+  }
+
+  mutating func add(a: S2Point, b: S2Point) {
+    edges.append(Edge(v0: a, v1: b))
+  }
+  
+  func numEdges() -> Int { return edges.count }
+  func edge(_ id: Int) -> Edge { return edges[id] }
+  func hasInterior() -> Bool { return false }
+  func referencePoint() -> ReferencePoint { return ReferencePoint(origin: true, contained: false) }
+  func numChains() -> Int { return edges.count }
+  func chain(_ chainId: Int) -> Chain { return Chain(start: chainId, length: 1) }
+  func chainEdge(chainId: Int, offset: Int) -> Edge { return edges[chainId] }
+  func chainPosition(_ edgeId: Int) -> ChainPosition { return ChainPosition(chainId: edgeId, offset: 0) }
+  func dimension() -> ShapeDimension { return .polylineGeometry }
+  func containsOrigin() -> Bool { return false }
+
+}
+
+/// Constructs a polygon from the sequence of loops in the input
+/// string. Loops are automatically normalized by inverting them if necessary
+/// so that they enclose at most half of the unit sphere. (Historically this was
+/// once a requirement of polygon loops. It also hides the problem that if the
+/// user thinks of the coordinates as X:Y rather than LAT:LNG, it yields a loop
+/// with the opposite orientation.)
+///
+/// Loops are semicolon separated in the input string with each loop using the
+/// same format as above.
+///
+/// Examples of the input format:
+///     "10:20, 90:0, 20:30"                                  // one loop
+///     "10:20, 90:0, 20:30; 5.5:6.5, -90:-180, -15.2:20.3"   // two loops
+///     ""       // the empty polygon (consisting of no loops)
+///     "empty"  // the empty polygon (consisting of no loops)
+///     "full"   // the full polygon (consisting of one full loop)
+func makePolygon(_ s: String, normalize: Bool) -> S2Polygon {
+  let strs = (s == "empty") ? [] : s.components(separatedBy: ";")
+  var loops: [S2Loop] = []
+  for str in strs {
+    if str == "" {
+      continue
+    }
+    let loop = makeLoop(str.trimmingCharacters(in: .whitespaces))
+    if normalize && !loop.isFull {
+      // TODO(roberts): Uncomment once Normalize is implemented.
+//      loop.normalize()
+    }
+    loops.append(loop)
+  }
+  return S2Polygon(loops: loops)
+}
+
+/// Constructs a Polyline from the given string.
+func makePolyline(_ s: String) -> S2Polyline {
+  let points = parsePoints(s)
+  return S2Polyline(points: points)
+}
+
+// concentricLoopsPolygon constructs a polygon with the specified center as a
+// number of concentric loops and vertices per loop.
+func concentricLoopsPolygon(center: S2Point, numLoops: Int, verticesPerLoop: Int) -> S2Polygon {
+  var loops: [S2Loop] = []
+  for li in 0..<numLoops {
+    let radius = S1Angle(0.005 * Double(li + 1) / Double(numLoops))
+    loops.append(S2Loop.regularLoop(center: center, radius: radius, numVertices: verticesPerLoop))
+  }
+  return S2Polygon(loops: loops)
+}
+
