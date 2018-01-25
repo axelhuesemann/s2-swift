@@ -28,19 +28,29 @@ import Foundation
 ///  - No loop may be empty.  The full loop may appear only in the full polygon.
 public struct S2Polygon: S2RegionType, Shape {
   
+  public func numEdges() -> Int {
+    return totalEdges
+  }
+
+  public func containsOrigin() -> Bool {
+    // TODO implement
+    return false
+  }
+  
+  /// stores the loops
   let loops: [S2Loop]
   
-  // index is a spatial index of all the polygon loops.
+  /// A spatial index of all the polygon loops.
   let index: ShapeIndex
-  
-  // hasHoles tracks if this polygon has at least one hole.
+
+  /// Tracks if this polygon has at least one hole.
   let hasHoles: Bool
   
-  // numVertices keeps the running total of all of the vertices of the contained loops.
+  /// Keeps the running total of all of the vertices of the contained loops.
   let numVertices: Int
   
-  // bound is a conservative bound on all points contained by this loop.
-  // If l.ContainsPoint(P), then l.bound.ContainsPoint(P).
+  /// A conservative bound on all points contained by this loop.
+  /// If contains(P), then bound.contains(P).
   let bound: S2Rect
   
   // Since bound is not exact, it is possible that a loop A contains
@@ -49,12 +59,12 @@ public struct S2Polygon: S2RegionType, Shape {
   // if A.Contains(B), then A.subregionBound.Contains(B.bound).
   let subregionBound: S2Rect
 
-  // numEdges tracks the total number of edges in all the loops in this polygon.
-  let numEdges: Int
+  /// Tracks the total number of edges in all the loops in this polygon.
+  let totalEdges: Int
   
-  // A slice where element i is the cumulative number of edges in the
-  // preceding loops in the polygon. This field is used for polygons that
-  // have a large number of loops, and may be empty for polygons with few loops.
+  /// A slice where element i is the cumulative number of edges in the
+  /// preceding loops in the polygon. This field is used for polygons that
+  /// have a large number of loops, and may be empty for polygons with few loops.
   let cumulativeEdges: [Int]
 
   // MARK: inits / factory
@@ -88,7 +98,7 @@ public struct S2Polygon: S2RegionType, Shape {
     //
     let (cumulativeEdges, numEdges) = S2Polygon.computeEdges(loops: loops)
     self.cumulativeEdges = cumulativeEdges
-    self.numEdges = numEdges
+    self.totalEdges = numEdges
     // has its own shapeindex for recursive loop thingies (?)
     self.index = ShapeIndex()
     self.index.add(shape: self)
@@ -104,34 +114,6 @@ public struct S2Polygon: S2RegionType, Shape {
     self.init(loops: [loop], hasHoles: false, numVertices: loop.vertices.count, bound: loop.bound, subregionBound: loop.subregionBound)
   }
 
-  /// Constructs a polygon from the given set of loops. The polygon
-  /// interior consists of the points contained by an odd number of loops. (Recall
-  /// that a loop contains the set of points on its left-hand side.)
-  ///
-  /// This method determines the loop nesting hierarchy and assigns every loop a
-  /// depth. Shells have even depths, and holes have odd depths.
-  ///
-  /// Note: The given set of loops are reordered by this method so that the hierarchy
-  /// can be traversed using Parent, LastDescendant and the loops depths.
-  init(loops: [S2Loop]) {
-    if loops.count == 0 {
-      self = S2Polygon.empty
-      return
-    }
-    // simple
-    if loops.count == 1 {
-      self.init(loop: loops[0])
-      return
-    }
-    // take the set of loops in this polygon and performs the nesting
-    // computations to set the proper nesting and parent/child relationships.
-    let lm = LoopMap(loops: loops)
-    // Reorder the loops in depth-first traversal order.
-    let loops2 = S2Polygon.computeLoops(lm)
-    let (hasHoles, numVertices, bound, subregionBound) = S2Polygon.computeLoopProperties(loops: loops2)
-    self.init(loops: loops2, hasHoles: hasHoles, numVertices: numVertices, bound: bound, subregionBound: subregionBound)
-  }
-  
   /// A map of a loop to its immediate children with respect to nesting.
   /// It is used to determine which loops are shells and which are holes.
   struct LoopMap {
@@ -176,6 +158,91 @@ public struct S2Polygon: S2RegionType, Shape {
     
   }
 
+  ///  Simplifies access to the loops while being initialized.
+  struct LoopStack {
+    
+    var loops: [(Int, S2Loop)] = []
+    
+    mutating func push(_ v: (Int, S2Loop)) {
+      loops.append(v)
+    }
+    
+    mutating func pop() -> (Int, S2Loop)? {
+      return loops.popLast()
+    }
+    
+    var isEmpty: Bool { return loops.count == 0 }
+    
+  }
+  
+  /// Walks the mapping of loops to all of their children, and adds them in
+  /// order into to the polygons set of loops.
+  static func computeLoops(loopMap: LoopMap) -> [S2Loop] {
+    var loops: [S2Loop] = []
+    var stack = LoopStack()
+    stack.push((-1, S2Loop.full))
+    var depth = -1
+    while !stack.isEmpty {
+      guard let (index, loop) = stack.pop() else { break }
+      depth = loop.depth
+      loops.append(loop)
+      let children = loopMap[index].reversed()
+      for child in children {
+        // TODO this is somehow wrong. The loop should not be changed when it's inserted into a tree.
+        // We might need an object that represents a node a tree of loops
+        //child.1.depth = depth + 1
+        stack.push(child)
+      }
+    }
+    return loops
+  }
+  
+  /// Sets the properties for polygons with multiple loops.
+  static func computeLoopProperties(loops: [S2Loop]) -> (Bool, Int, S2Rect, S2Rect) {
+    // the loops depths are set by initNested/initOriented prior to this.
+    var hasHoles = false
+    var numVertices = 0
+    var bound = S2Rect.empty
+    for l in loops {
+      if l.isHole() {
+        hasHoles = true
+      } else {
+        bound = bound.union(l.rectBound())
+      }
+      numVertices += l.numVertices()
+    }
+    let subregionBound = bound.expandForSubregions()
+    return (hasHoles, numVertices, bound, subregionBound)
+  }
+  
+  /// Constructs a polygon from the given set of loops. The polygon
+  /// interior consists of the points contained by an odd number of loops. (Recall
+  /// that a loop contains the set of points on its left-hand side.)
+  ///
+  /// This method determines the loop nesting hierarchy and assigns every loop a
+  /// depth. Shells have even depths, and holes have odd depths.
+  ///
+  /// Note: The given set of loops are reordered by this method so that the hierarchy
+  /// can be traversed using Parent, LastDescendant and the loops depths.
+  init(loops: [S2Loop]) {
+    if loops.count == 0 {
+      self.init(loops: [], hasHoles: false, numVertices: 0, bound:S2Rect.empty, subregionBound: S2Rect.empty)
+      return
+    }
+    // simple
+    if loops.count == 1 {
+      self.init(loop: loops[0])
+      return
+    }
+    // take the set of loops in this polygon and performs the nesting
+    // computations to set the proper nesting and parent/child relationships.
+    let lm = LoopMap(loops: loops)
+    // Reorder the loops in depth-first traversal order.
+    let loops2 = S2Polygon.computeLoops(loopMap: lm)
+    let (hasHoles, numVertices, bound, subregionBound) = S2Polygon.computeLoopProperties(loops: loops2)
+    self.init(loops: loops2, hasHoles: hasHoles, numVertices: numVertices, bound: bound, subregionBound: subregionBound)
+  }
+  
   /// Like S2Polygon(loops), returns a Polygon from the
   /// given set of loops. It expects loops to be oriented such that the polygon
   /// interior is on the left-hand side of all loops. This implies that shells
@@ -183,17 +250,7 @@ public struct S2Polygon: S2RegionType, Shape {
   /// (During initialization, loops representing holes will automatically be
   /// inverted.)
   init(orientedLoops: [S2Loop]) {
-    self.init(loops: loops)
-    initOriented()
-  }
-  
-  /// Takes the loops in this polygon and performs the nesting
-  /// computations. It expects the loops to be oriented such that the polygon
-  /// interior is on the left-hand side of all loops. This implies that shells
-  /// and holes should have opposite orientations in the input to this method.
-  /// (During initialization, loops representing holes will automatically be
-  /// inverted.)
-  func initOriented() {
+    fatalError("initOriented not yet implemented")
     // Here is the algorithm:
     //
     // 1. Remember which of the given loops contain OriginPoint.
@@ -229,47 +286,6 @@ public struct S2Polygon: S2RegionType, Shape {
     //    that because we normalized all the loops initially, this step is only
     //    necessary if the polygon requires at least one non-normalized loop to
     //    represent it.
-    fatalError("initOriented not yet implemented")
-  }
-  
-  // loopStack simplifies access to the loops while being initialized.
-  struct LoopStack {
-    
-    var loops: [S2Loop] = []
-  
-    mutating func push(_ v: S2Loop) {
-      loops.append(v)
-    }
-  
-    mutating func pop() -> S2Loop? {
-      return loops.popLast()
-    }
-  
-    var isEmpty: Bool { return loops.count == 0 }
-    
-  }
-  
-  /// Walks the mapping of loops to all of their children, and adds them in
-  /// order into to the polygons set of loops.
-  func computeLoops(lm: LoopMap) -> [S2Loop] {
-    var loops: [S2Loop] = []
-    var stack = LoopStack()
-    stack.push(S2Loop.full)
-    var depth = -1
-    while !stack.isEmpty {
-      if let loop = stack.pop() {
-        depth = loop.depth
-        loops.append(loop)
-      }
-      var children = lm[loop]
-      for j in 0..<children.count {
-        let i = children.count - 1 - j
-        let child = children[i]
-        child.depth = depth + 1
-        stack.push(child)
-      }
-    }
-    return loops
   }
   
   /// Returns a Polygon from a single loop created from the given Cell.
@@ -303,39 +319,56 @@ public struct S2Polygon: S2RegionType, Shape {
 
   // Reports whether the polygon contains the given cell.
   public func contains(_ cell: Cell) -> Bool {
-    return loops.count == 1 && loops[0].contains(cell)
+    if (loops.count == 1) {
+      return loops[0].contains(cell)
+    }
+    var it = index.iterator()
+    let relation = it.locate(cellId: cell.id)
+    // If "cell" is disjoint from all index cells, it is not contained.
+    // Similarly, if "cell" is subdivided into one or more index cells then it
+    // is not contained, since index cells are subdivided only if they (nearly)
+    // intersect a sufficient number of edges.  (But note that if "cell" itself
+    // is an index cell then it may be contained, since it could be a cell with
+    // no edges in the loop interior.)
+    if relation != .indexed {
+      return false
+    }
+    // Otherwise check if any edges intersect "cell".
+    if boundaryApproxIntersects(iterator: it, cell: cell) {
+      return false
+    }
+    // Otherwise check if the loop contains the center of "cell".
+    return iteratorContains(iterator: it, point: cell.center())
   }
   
   /// Reports whether the polygon intersects the given cell.
   public func intersects(_ cell: Cell) -> Bool {
-    return loops.count == 1 && loops[0].intersects(cell)
-  }
-
-  /// Sets the properties for polygons with multiple loops.
-  static func initLoopProperties(loops: [S2Loop]) -> (Bool, Int, S2Rect, S2Rect) {
-    // the loops depths are set by initNested/initOriented prior to this.
-    var hasHoles = false
-    var numVertices = 0
-    var bound = S2Rect.empty
-    for l in loops {
-      if l.isHole() {
-        hasHoles = true
-      } else {
-        bound = bound.union(l.rectBound())
-      }
-      numVertices += l.numVertices()
+    if loops.count == 1 {
+      return loops[0].intersects(cell)
     }
-    var subregionBound = expandForSubregions(bound)
-    let (cumulativeEdges, numEdges) = S2Polygon.initEdgesAndIndex(loops: loops)
-    return (hasHoles, numVertices, bound, subregionBound)
-  }
-  
-  /// Returns a special "full" polygon.
-  static func fullPolygon() -> S2Polygon {
-    let full = S2Loop.full
-    let (cumulativeEdges, numEdges) = computeEdges(loops: [full])
-    var p = S2Polygon(loops: [full], numVertices: full.vertices.count, bound: S2Rect.full, subregionBound: S2Rect.full)
-    return p
+    var it = index.iterator()
+    let relation = it.locate(cellId: cell.id)
+    // If cell does not overlap any index cell, there is no intersection.
+    if relation == .disjoint {
+      return false
+    }
+    // If cell is subdivided into one or more index cells, there is an
+    // intersection to within the S2ShapeIndex error bound (see Contains).
+    if relation == .subdivided {
+      return true
+    }
+    // If cell is an index cell, there is an intersection because index cells
+    // are created only if they have at least one edge or they are entirely
+    // contained by the loop.
+    if it.cellId() == cell.id {
+      return true
+    }
+    // Otherwise check if any edges intersect cell.
+    if boundaryApproxIntersects(iterator: it, cell: cell) {
+      return true
+    }
+    // Otherwise check if the loop contains the center of cell.
+    return iteratorContains(iterator: it, point: cell.center())
   }
   
   /// Returns the number of loops in this polygon.
@@ -394,7 +427,7 @@ public struct S2Polygon: S2RegionType, Shape {
   }
   
   /// Reports whether the polygon contains the point.
-  func contains(_ point: S2Point) -> Bool {
+  public func contains(_ point: S2Point) -> Bool {
     // NOTE: A bounds check slows down this function by about 50%. It is
     // worthwhile only when it might allow us to delay building the index.
     if !index.isFresh() && !bound.contains(point) {
@@ -403,7 +436,7 @@ public struct S2Polygon: S2RegionType, Shape {
     // For small polygons, and during initial construction, it is faster to just
     // check all the crossing.
     let maxBruteForceVertices = 32
-    if numVertices < maxBruteForceVertices || index == nil {
+    if numVertices < maxBruteForceVertices {
       var inside = false
       for l in loops {
         // use loops bruteforce to avoid building the index on each loop.
@@ -417,55 +450,6 @@ public struct S2Polygon: S2RegionType, Shape {
       return false
     }
     return iteratorContains(iterator: it, point: point)
-  }
-  
-  /// Reports whether the polygon contains the given cell.
-  func contains(_ cell: Cell) -> Bool {
-    var it = index.iterator()
-    var relation = it.locate(cellId: cell.id)
-    
-    // If "cell" is disjoint from all index cells, it is not contained.
-    // Similarly, if "cell" is subdivided into one or more index cells then it
-    // is not contained, since index cells are subdivided only if they (nearly)
-    // intersect a sufficient number of edges.  (But note that if "cell" itself
-    // is an index cell then it may be contained, since it could be a cell with
-    // no edges in the loop interior.)
-    if relation != .indexed {
-      return false
-    }
-    // Otherwise check if any edges intersect "cell".
-    if boundaryApproxIntersects(iterator: it, cell: cell) {
-      return false
-    }
-    // Otherwise check if the loop contains the center of "cell".
-    return iteratorContains(iterator: it, point: cell.center())
-  }
-  
-  /// Reports whether the polygon intersects the given cell.
-  func intersects(_ cell: Cell) -> Bool {
-    var it = index.iterator()
-    var relation = it.locate(cellId: cell.id)
-    // If cell does not overlap any index cell, there is no intersection.
-    if relation == .disjoint {
-      return false
-    }
-    // If cell is subdivided into one or more index cells, there is an
-    // intersection to within the S2ShapeIndex error bound (see Contains).
-    if relation == .subdivided {
-      return true
-    }
-    // If cell is an index cell, there is an intersection because index cells
-    // are created only if they have at least one edge or they are entirely
-    // contained by the loop.
-    if it.cellId() == cell.id {
-      return true
-    }
-    // Otherwise check if any edges intersect cell.
-    if boundaryApproxIntersects(iterator: it, cell: cell) {
-      return true
-    }
-    // Otherwise check if the loop contains the center of cell.
-    return iteratorContains(iterator: it, point: cell.center())
   }
   
   /// Computes a covering of the Polygon.
@@ -494,7 +478,7 @@ public struct S2Polygon: S2RegionType, Shape {
     for e in aClipped.edges {
       if let edge = index.shape(id: 0)?.edge(e) {
         let (v0, v1, ok) = clipToPaddedFace(a: edge.v0, b: edge.v1, f: Int(cell.face), padding: maxError)
-        if ok && edgeIntersectsRect(v0, v1, bound) {
+        if ok && edgeIntersectsRect(a: v0, b: v1, r: bound) {
           return true
         }
       }
@@ -528,11 +512,13 @@ public struct S2Polygon: S2RegionType, Shape {
   /// Returns endpoints for the given edge index.
   public func edge(_ e: Int) -> Edge {
     var e = e
+    var j: Int
     if cumulativeEdges.count > 0 {
+      j = 0
       for i in cumulativeEdges {
         if i + 1 >= cumulativeEdges.count || e < cumulativeEdges[i + 1] {
           e -= cumulativeEdges[i]
-          break
+          j = i
         }
       }
     } else {
@@ -543,8 +529,9 @@ public struct S2Polygon: S2RegionType, Shape {
         e -= loop(i).vertices.count
         i += 1
       }
+      j = i
     }
-    return edge(v0: loop(i).orientedVertex(e), v1: loop(i).orientedVertex(e + 1))
+    return Edge(v0: loop(j).orientedVertex(e), v1: loop(j).orientedVertex(e + 1))
   }
   
   //// Reports whether this Polygon has an interior.
@@ -571,14 +558,13 @@ public struct S2Polygon: S2RegionType, Shape {
   
   /// Returns the i-th edge Chain (loop) in the Shape.
   public func chain(_ chainId: Int) -> Chain {
-    if cumulativeEdges != nil {
-      return Chain(start: cumulativeEdges[chainId], length: loop(chainId).vertices.count)
-    }
-    var e = 0
-    for j in 0..<chainId {
-      e += loop(j).vertices.count
-    }
-    return Chain(start: e, length: loop(chainId).vertices.count)
+    return Chain(start: cumulativeEdges[chainId], length: loop(chainId).vertices.count)
+    // old implementation before cumulativeEdges, basically calculating cumulative as we go
+//    var e = 0
+//    for j in 0..<chainId {
+//      e += loop(j).vertices.count
+//    }
+//    return Chain(start: e, length: loop(chainId).vertices.count)
   }
   
   /// Returns the j-th edge of the i-th edge Chain (loop).
@@ -777,22 +763,14 @@ public struct S2Polygon: S2RegionType, Shape {
   
   /// Reports whether any loop in this polygon contains the given loop.
   func anyLoopContains(_ o: S2Loop) -> Bool {
-    for l in loops {
-      if contains(o) {
-        return true
-      }
-    }
-    return false
+    let found = loops.first { $0.contains(o) }
+    return found != nil
   }
   
   /// Reports whether any loop in this polygon intersects the given loop.
   func anyLoopIntersects(_ o: S2Loop) -> Bool {
-    for l in loops {
-      if intersects(o) {
-        return true
-      }
-    }
-    return false
+    let found = loops.first { $0.intersects(o) }
+    return found != nil
   }
 
 }
