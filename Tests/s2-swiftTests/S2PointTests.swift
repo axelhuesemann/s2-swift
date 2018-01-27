@@ -19,14 +19,6 @@ class S2PointTests: XCTestCase {
     super.tearDown()
   }
   
-  func p(_ x: Double, _ y: Double, _ z: Double) -> S2Point {
-    return S2Point(x: x, y: y, z: z)
-  }
-  
-  func p(_ lat: Double, _ lng: Double) -> S2Point {
-    return llDegrees(lat, lng).toPoint()
-  }
-  
   func testOriginPoint() {
     XCTAssertEqual(S2Point.origin.v.norm, 1.0, accuracy: 1e-16)
   }

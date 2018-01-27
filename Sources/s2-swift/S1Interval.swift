@@ -317,7 +317,11 @@ public struct S1Interval: IntervalType {
 
 }
 
-extension S1Interval: CustomStringConvertible {
+extension S1Interval: Equatable, CustomStringConvertible {
+  
+  public static func ==(lhs: S1Interval, rhs: S1Interval) -> Bool {
+    return lhs.lo == rhs.lo && lhs.hi == rhs.hi
+  }
   
   public var description: String {
     let l = String(format: "%.7f", lo * toDegrees)

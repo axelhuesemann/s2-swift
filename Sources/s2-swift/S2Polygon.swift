@@ -128,7 +128,7 @@ public struct S2Polygon: S2RegionType, Shape {
         // find parent by narrowing down
         while true {
           children = loopMap[parent.0] ?? []
-          if let child = children.first(where: { $0.1.containsNested(other: loop) }) {
+          if let child = children.first(where: { $0.1.containsNested(loop) }) {
             parent = child
           } else {
             break
@@ -139,7 +139,7 @@ public struct S2Polygon: S2RegionType, Shape {
         var newChildren = children
         var parentsChildren = [(index, loop)]
         for child in children {
-          if loop.containsNested(other: child.1) {
+          if loop.containsNested(child.1) {
             newChildren.append(child)
           } else {
             parentsChildren.append(child)
@@ -681,7 +681,7 @@ public struct S2Polygon: S2RegionType, Shape {
     while i < loops.count && result != 0 {
       // If B crosses any loop of A, the result is 0. Otherwise the result
       // changes sign each time B is contained by a loop of A.
-      result *= -loops[i].compareBoundary(o: o)
+      result *= -loops[i].compareBoundary(o)
       i += 1
     }
     return result

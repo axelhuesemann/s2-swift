@@ -57,7 +57,6 @@ struct TestShape: Shape {
   
 }
 
-
 class S2ShapeIndexTests: XCTestCase {
   
   override func setUp() {
@@ -317,10 +316,6 @@ class S2ShapeIndexTests: XCTestCase {
     XCTAssertEqual(index.nextId, 0, "the first element added to the index should have id 0")
     quadraticValidate(index: index)
     iteratorMethods(index: index)
-  }
-  
-  func p(_ x: Double, _ y: Double, _ z: Double) -> S2Point {
-    return S2Point(x: x, y: y, z: z)
   }
   
   func testShapeIndexManyIdenticalEdges() {

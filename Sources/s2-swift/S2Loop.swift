@@ -322,11 +322,11 @@ public struct S2Loop: Shape, S2RegionType {
     return isHole() ? -1 : 1
   }
   
-  /// BoundaryEqual reports whether the two loops have the same boundary. This is
+  /// Reports whether the two loops have the same boundary. This is
   /// true if and only if the loops have the same vertices in the same cyclic order
   /// (i.e., the vertices may be cyclically rotated). The empty and full loops are
   /// considered to have different boundaries.
-  func boundaryEqual(_ o: S2Loop) -> Bool {
+  func boundaryEquals(_ o: S2Loop) -> Bool {
     if vertices.count != o.vertices.count {
       return false
     }
@@ -367,7 +367,7 @@ public struct S2Loop: Shape, S2RegionType {
   /// the other loop (in the absence of shared edges).
   /// This requires that neither loop is empty, and if other loop IsFull, then it must not
   /// be a hole.
-  func compareBoundary(o: S2Loop) -> Int {
+  func compareBoundary(_ o: S2Loop) -> Int {
     // The bounds must intersect for containment or crossing.
     if !bound.intersects(o.bound) {
       return -1
@@ -996,7 +996,7 @@ public struct S2Loop: Shape, S2RegionType {
   // all of the Polygon requirements; for example this implies that their
   // boundaries may not cross or have any shared edges (although they may have
   // shared vertices).
-  func containsNested(other: S2Loop) -> Bool {
+  func containsNested(_ other: S2Loop) -> Bool {
     if !subregionBound.contains(other.bound) {
       return false
     }

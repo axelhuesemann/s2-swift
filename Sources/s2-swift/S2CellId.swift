@@ -858,8 +858,11 @@ extension CellId: Equatable, CustomStringConvertible, Hashable, Comparable {
     guard isValid else {
       return "Invalid: " + String(id, radix: 16)
     }
-    let pos = [String(id, radix: 16)]
-//    let pos = (1...level()).map { "\(childPosition($0))" }
+//    let pos = [String(id, radix: 16)]
+    guard level() > 0 else {
+      return "\(face())/level0"
+    }
+    let pos = (1...level()).map { "\(childPosition($0))" }
     // looks like "1/3210"
     return "\(face())/\(pos.joined())"
   }

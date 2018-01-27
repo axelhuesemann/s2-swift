@@ -408,8 +408,12 @@ public struct S2Rect: S2RegionType {
 
 }
 
-extension S2Rect: CustomStringConvertible {
+extension S2Rect: Equatable, CustomStringConvertible {
 
+  public static func ==(lhs: S2Rect, rhs: S2Rect) -> Bool {
+    return lhs.lat == rhs.lat && lhs.lng == rhs.lng
+  }
+  
   public var description: String {
     return "[Lo \(lo()), Hi \(hi())]"
   }

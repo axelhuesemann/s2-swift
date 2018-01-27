@@ -32,6 +32,10 @@ public struct S2Polyline: Shape, S2RegionType {
     return S2Polyline(points: points.reversed())
   }
   
+  public func vertex(_ i: Int) -> S2Point {
+    return points[i]
+  }
+  
   // MARK: computed members
   
   /// Returns the length of this Polyline.
@@ -160,6 +164,10 @@ public struct S2Polyline: Shape, S2RegionType {
     return false
   }
   
+  var numVertices: Int {
+    return points.count
+  }
+  
   // MARK: Shape protocol
   
   /// Returns the number of edges in this shape.
@@ -215,7 +223,8 @@ public struct S2Polyline: Shape, S2RegionType {
     // non-decreasing).
     var currentWedge = S1Interval.full
     var lastDistance: S1Angle = 0
-    for index in 1..<points.count {
+    var index = index + 1
+    while index < points.count {
       let candidate = points[index]
       let distance = origin.distance(candidate)
       // We don't allow simplification to create edges longer than
@@ -234,6 +243,7 @@ public struct S2Polyline: Shape, S2RegionType {
       // Points that are within the tolerance distance of the origin
       // do not constrain the ray direction, so we can ignore them.
       if distance <= tolerance {
+        index += 1
         continue
       }
       // If the current wedge of angles does not contain the angle
@@ -260,6 +270,7 @@ public struct S2Polyline: Shape, S2RegionType {
       let halfAngle = asin(sin(tolerance) / sin(distance))
       let target = S1Interval(lo: center, hi: center).expanded(halfAngle)
       currentWedge = currentWedge.intersection(target)
+      index += 1
     }
     // We break out of the loop when we reach a vertex index that
     // can't be included in the line segment, so back up by one
@@ -272,28 +283,22 @@ public struct S2Polyline: Shape, S2RegionType {
   /// the original polyline. Provided the first and last vertices are distinct,
   /// they are always preserved; if they are not, the subsequence may contain
   /// only a single index.
-  ///
   /// Some useful properties of the algorithm:
-  ///
   ///  - It runs in linear time.
-  ///
   ///  - The output always represents a valid polyline. In particular, adjacent
   ///    output vertices are never identical or antipodal.
-  ///
   ///  - The method is not optimal, but it tends to produce 2-3% fewer
   ///    vertices than the Douglas-Peucker algorithm with the same tolerance.
-  ///
   ///  - The output is parametrically equivalent to the original polyline to
   ///    within the given tolerance. For example, if a polyline backtracks on
   ///    itself and then proceeds onwards, the backtracking will be preserved
   ///    (to within the given tolerance). This is different than the
   ///    Douglas-Peucker algorithm which only guarantees geometric equivalence.
   func subsampleVertices(tolerance: S1Angle) -> [Int] {
-    var result: [Int] = []
     if points.count < 1 {
-      return result
+      return []
     }
-    result.append(0)
+    var result = [0]
     let clampedTolerance = S1Angle(max(tolerance, 0))
     var index = 0
     while index < points.count - 1 {

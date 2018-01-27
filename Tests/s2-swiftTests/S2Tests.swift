@@ -7,24 +7,6 @@ import XCTest
 @testable import s2_swift
 
 
-class S2Tests: XCTestCase {
-
-  override func setUp() {
-    super.setUp()
-    // Put setup code here. This method is called before the invocation of each test method in the class.
-  }
-  
-  override func tearDown() {
-    // Put teardown code here. This method is called after the invocation of each test method in the class.
-    super.tearDown()
-  }
-  
-  func testDefault() {
-    
-  }
-  
-}
-
 let	epsilon = 1e-14
 
 // float64Eq reports whether the two values are within the default epsilon.
@@ -45,11 +27,18 @@ func kmToAngle(km: Double) -> Double {
 	let earthRadiusKm = 6371.01
   // ???
 	return km / earthRadiusKm
-  
 }
 
 func llDegrees(_ lat: Double, _ lng: Double) -> LatLng {
   return LatLng(lat: lat * toRadians, lng: lng * toRadians)
+}
+
+func p(_ x: Double, _ y: Double, _ z: Double) -> S2Point {
+  return S2Point(x: x, y: y, z: z)
+}
+
+func p(_ lat: Double, _ lng: Double) -> S2Point {
+  return llDegrees(lat, lng).toPoint()
 }
 
 // randomBits returns a 64-bit random unsigned integer whose lowest "num" are random, and
