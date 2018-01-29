@@ -26,7 +26,7 @@ import Foundation
 ///  - Loops may share vertices, however no vertex may appear twice in a
 ///    single loop (see Loop).
 ///  - No loop may be empty.  The full loop may appear only in the full polygon.
-public struct S2Polygon: S2Region, Shape {
+public struct S2Polygon: S2Region, S2Shape {
   
   public func numEdges() -> Int {
     return totalEdges

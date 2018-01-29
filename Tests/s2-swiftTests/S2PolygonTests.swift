@@ -21,21 +21,21 @@ class S2PolygonTests: XCTestCase {
   
   func makePolygon(_ coords: [(Double, Double)]) -> S2Polygon {
     let latLngs = coords.map { llDegrees($0, $1) }
-    let points = latLngs.map { S2Point(latLng: $0) }
+    let points = latLngs.map { $0.toPoint() }
     let loop = S2Loop(points: points)
     return S2Polygon(loop: loop)
   }
   
   func makeLoop(_ coords: [(Double, Double)]) -> S2Loop {
     let latLngs = coords.map { llDegrees($0, $1) }
-    let points = latLngs.map { S2Point(latLng: $0) }
+    let points = latLngs.map { $0.toPoint() }
     return S2Loop(points: points)
   }
   
   func testCreate() {
     let coords = [(37.5, 122.5), (37.5, 122), (37, 122), (37, 122.5)]
     let latLngs = coords.map { llDegrees($0, $1) }
-    let points = latLngs.map { S2Point(latLng: $0) }
+    let points = latLngs.map { $0.toPoint() }
     let loop = S2Loop(points: points)
     let poly = S2Polygon(loop: loop)
     XCTAssertNotNil(poly)

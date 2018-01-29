@@ -55,7 +55,10 @@ public struct S1Interval: IntervalType {
   
   /// Reports whether the interval is valid.
   var isValid: Bool {
-    return abs(lo) <= .pi && abs(hi) <= .pi && !(lo == -.pi && hi != .pi) && !(hi == -.pi && lo != .pi)
+    // needs to be within [-pi, pi]
+    if abs(lo) > .pi || abs(hi) > .pi { return false }
+    // -pi is only used for empty and full special cases
+    return !(lo == -.pi && hi != .pi) && !(hi == -.pi && lo != .pi)
   }
 
   /// Reports whether the interval is full.
@@ -148,7 +151,8 @@ public struct S1Interval: IntervalType {
     return interval.lo <= hi && interval.hi >= lo
   }
   
-  /// Returns true iff the interior of the interval contains any points in common with other, including the latter's boundary.
+  /// Returns true iff the interior of the interval contains any points
+  /// in common with other, including the latter's boundary.
   public func interiorIntersects(_ interval: S1Interval) -> Bool {
     if isEmpty || interval.isEmpty || lo == hi {
       return false
@@ -167,13 +171,13 @@ public struct S1Interval: IntervalType {
   /// Returns the length of the interval.
   /// The length of an empty interval is negative.
   public var length: S1Angle {
-    var l = hi - lo
+    let l = hi - lo
     if l >= 0.0 {
       return l
     }
-    l += 2 * .pi
-    if l > 0 {
-      return l
+    let l2 = l + 2 * .pi
+    if l2 > 0 {
+      return l2
     }
     return -1
   }

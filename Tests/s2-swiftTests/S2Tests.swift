@@ -311,7 +311,7 @@ func samplePointFromCap(c: S2Cap) -> S2Point {
 	// The result should already be very close to unit-length, but we might as
 	// well make it accurate as possible.
   let p = S2Point(x: cos(theta) * r, y: sin(theta) * r, z: 1 - h)
-  return R3Matrix.fromFrame(m, point: p)
+  return S2Point.fromFrame(m, point: p)
 }
 
 // perturbATowardsB returns a point that has been shifted some distance towards the
@@ -379,7 +379,7 @@ struct EdgeVectorShape {
   var edges: [Edge]
 }
 
-extension EdgeVectorShape: Shape {
+extension EdgeVectorShape: S2Shape {
 
   /// Creates an edgeVectorShape of length 1 from the given points.
   init(a: S2Point, b: S2Point) {

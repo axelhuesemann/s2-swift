@@ -41,7 +41,7 @@ extension CrossingEdgeQuery {
   // If the CrossingType is Interior, then only intersections at a point interior to both
   // edges are reported, while if it is CrossingTypeAll then edges that share a vertex
   // are also reported.
-  mutating func crossings(a: S2Point, b: S2Point, shape: Shape, shapeId: Int32, crossType: CrossingType) -> [Int]? {
+  mutating func crossings(a: S2Point, b: S2Point, shape: S2Shape, shapeId: Int32, crossType: CrossingType) -> [Int]? {
     var edges = candidates(a: a, b: b, shape: shape, shapeId: shapeId)
     if edges.count == 0 {
       return nil
@@ -100,7 +100,7 @@ extension CrossingEdgeQuery {
 
   // candidates returns a superset of the edges of the given shape that intersect
   // the edge AB.
-  mutating func candidates(a: S2Point, b: S2Point, shape: Shape, shapeId: Int32) -> [Int] {
+  mutating func candidates(a: S2Point, b: S2Point, shape: S2Shape, shapeId: Int32) -> [Int] {
     // For small loops it is faster to use brute force. The threshold below was
     // determined using benchmarks.
     let maxBruteForceEdges = 27

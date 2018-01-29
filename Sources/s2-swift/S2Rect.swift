@@ -154,17 +154,17 @@ public struct S2Rect: S2Region {
     if lat.hi + lat.lo < 0 {
       // South pole axis yields smaller cap.
       poleZ = -1
-      poleAngle = .pi/2 + lat.hi
+      poleAngle = .pi / 2 + lat.hi
     } else {
       poleZ = 1
-      poleAngle = .pi/2 - lat.lo
+      poleAngle = .pi / 2 - lat.lo
     }
     let poleCap = S2Cap(center: S2Point(x: 0, y: 0, z: poleZ), angle: poleAngle)
     // For bounding rectangles that span 180 degrees or less in longitude, the
     // maximum cap size is achieved at one of the rectangle vertices.  For
     // rectangles that are larger than 180 degrees, we punt and always return a
     // bounding cap centered at one of the two poles.
-    if (lng.hi-lng.lo).truncatingRemainder(dividingBy: .pi*2) >= 0 && lng.hi-lng.lo < .pi*2 {
+    if (lng.hi - lng.lo).truncatingRemainder(dividingBy: .pi * 2) >= 0 && lng.hi - lng.lo < .pi * 2 {
       let midCap = S2Cap(point: center.toPoint()).add(lo().toPoint()).add(hi().toPoint())
       if midCap.height < poleCap.height {
         return midCap
@@ -260,20 +260,6 @@ public struct S2Rect: S2Region {
     return lat.contains(rect.lat) && lng.contains(rect.lng)
   }
 
-  /// Reports whether the given Cell is contained by this Rect.
-  public func contains(_ cell: Cell) -> Bool {
-    // A latitude-longitude rectangle contains a cell if and only if it contains
-    // the cell's bounding rectangle. This test is exact from a mathematical
-    // point of view, assuming that the bounds returned by Cell.RectBound()
-    // are tight. However, note that there can be a loss of precision when
-    // converting between representations -- for example, if an s2.Cell is
-    // converted to a polygon, the polygon's bounding rectangle may not contain
-    // the cell's bounding rectangle. This has some slightly unexpected side
-    // effects; for instance, if one creates an s2.Polygon from an s2.Cell, the
-    // polygon will contain the cell, but the polygon's bounding box will not.
-    return contains(cell.rectBound())
-  }
-
   /// Reports whether the given LatLng is within the Rect.
   public func contains(_ latLng: LatLng) -> Bool {
     if !latLng.isValid {
@@ -284,7 +270,7 @@ public struct S2Rect: S2Region {
 
   /// Reports whether the given Point is within the Rect.
   func contains(_ point: S2Point) -> Bool {
-    return contains(LatLng(point: point))
+    return contains(LatLng(vector: point.v))
   }
 
   /// Reports if the edge AB intersects the given edge of constant
@@ -345,6 +331,26 @@ public struct S2Rect: S2Region {
     return EdgeCrosser.simpleCrossing(a: a, b: b, c: c, d: d)
   }
 
+}
+
+extension S2Rect {
+  
+  // MARK: cell related methods
+  
+  /// Reports whether the given Cell is contained by this Rect.
+  public func contains(_ cell: Cell) -> Bool {
+    // A latitude-longitude rectangle contains a cell if and only if it contains
+    // the cell's bounding rectangle. This test is exact from a mathematical
+    // point of view, assuming that the bounds returned by Cell.RectBound()
+    // are tight. However, note that there can be a loss of precision when
+    // converting between representations -- for example, if an s2.Cell is
+    // converted to a polygon, the polygon's bounding rectangle may not contain
+    // the cell's bounding rectangle. This has some slightly unexpected side
+    // effects; for instance, if one creates an s2.Polygon from an s2.Cell, the
+    // polygon will contain the cell, but the polygon's bounding box will not.
+    return contains(cell.rectBound())
+  }
+  
   /// Reports whether this rectangle intersects the given cell. This is an
   /// exact test and may be fairly expensive.
   public func intersects(_ cell: Cell) -> Bool {
@@ -370,7 +376,7 @@ public struct S2Rect: S2Region {
     let vertices = (0..<4).map { cell.vertex($0) }
     var latlngs = [LatLng]() // 4
     for i in 0..<vertices.count {
-      let latlng = LatLng(point: vertices[i])
+      let latlng = LatLng(vector: vertices[i].v)
       if contains(latlng) {
         return true
       }
@@ -406,6 +412,11 @@ public struct S2Rect: S2Region {
     return false
   }
 
+  /// Computes a covering of the Rect.
+  func cellUnionBound() -> CellUnion  {
+    return capBound().cellUnionBound()
+  }
+  
 }
 
 extension S2Rect: Equatable, CustomStringConvertible {

@@ -12,7 +12,7 @@ import Foundation
 /// distances but may have some numerical error if the distance is large
 /// (approximately pi/2 or greater). The case A == B is handled correctly.
 func distanceFromSegment(x: S2Point, a: S2Point, b: S2Point) -> S1Angle {
-  var minDist = ChordAngle.zero
+  var minDist = S1ChordAngle.zero
   (minDist, _) = updateMinDistance(x: x, a: a, b: b, minDist: minDist, alwaysUpdate: true)
   return minDist.angle()
 }
@@ -21,7 +21,7 @@ func distanceFromSegment(x: S2Point, a: S2Point, b: S2Point) -> S1Angle {
 /// than limit. This method is faster than DistanceFromSegment(). If you want to
 /// compare against a fixed s1.Angle, you should convert it to an s1.ChordAngle
 /// once and save the value, since this conversion is relatively expensive.
-func isDistanceLess(x: S2Point, a: S2Point, b: S2Point, limit: ChordAngle) -> Bool {
+func isDistanceLess(x: S2Point, a: S2Point, b: S2Point, limit: S1ChordAngle) -> Bool {
   let (_, less) = updateMinDistance(x: x, a: a, b: b, minDist: limit)
   return less
 }
@@ -35,14 +35,14 @@ func isDistanceLess(x: S2Point, a: S2Point, b: S2Point, limit: ChordAngle) -> Bo
 /// because (1) using s1.ChordAngle is much faster than s1.Angle, and (2) it
 /// can save a lot of work by not actually computing the distance when it is
 /// obviously larger than the current minimum.
-func updateMinDistance(x: S2Point, a: S2Point, b: S2Point, minDist: ChordAngle) -> (ChordAngle, Bool) {
+func updateMinDistance(x: S2Point, a: S2Point, b: S2Point, minDist: S1ChordAngle) -> (S1ChordAngle, Bool) {
   return updateMinDistance(x: x, a: a, b: b, minDist: minDist, alwaysUpdate: false)
 }
 
 /// IsInteriorDistanceLess reports whether the minimum distance from X to the
 /// edge AB is attained at an interior point of AB (i.e., not an endpoint), and
 /// that distance is less than limit.
-func isInteriorDistanceLess(x: S2Point, a: S2Point, b: S2Point, limit: ChordAngle) -> Bool {
+func isInteriorDistanceLess(x: S2Point, a: S2Point, b: S2Point, limit: S1ChordAngle) -> Bool {
   let (_, less) = updateMinInteriorDistance(x: x, a: a, b: b, minDist: limit)
   return less
 }
@@ -51,7 +51,7 @@ func isInteriorDistanceLess(x: S2Point, a: S2Point, b: S2Point, limit: ChordAngl
 /// is attained at an interior point of AB (i.e., not an endpoint), and that distance
 /// is less than minDist. If so, the value of minDist is updated and true is returned.
 /// Otherwise it is unchanged and returns false.
-func updateMinInteriorDistance(x: S2Point, a: S2Point, b: S2Point, minDist: ChordAngle) -> (ChordAngle, Bool) {
+func updateMinInteriorDistance(x: S2Point, a: S2Point, b: S2Point, minDist: S1ChordAngle) -> (S1ChordAngle, Bool) {
   return interiorDist(x: x, a: a, b: b, minDist: minDist, alwaysUpdate: false)
 }
 
@@ -125,7 +125,7 @@ func interpolateAtDistance(ax: S1Angle, a: S2Point, b: S2Point) -> S2Point {
 /// input points are normalized to within the bounds guaranteed by r3.Vector's
 /// Normalize. The error can be added or subtracted from an s1.ChordAngle
 /// using its Expanded method.
-func minUpdateDistanceMaxError(dist: ChordAngle) -> Double {
+func minUpdateDistanceMaxError(dist: S1ChordAngle) -> Double {
   // There are two cases for the maximum error in UpdateMinDistance(),
   // depending on whether the closest point is interior to the edge.
   return max(minUpdateInteriorDistanceMaxError(dist: dist), dist.maxPointError())
@@ -135,7 +135,7 @@ func minUpdateDistanceMaxError(dist: ChordAngle) -> Double {
 /// UpdateMinInteriorDistance, assuming that all input points are normalized
 /// to within the bounds guaranteed by Point's Normalize. The error can be added
 /// or subtracted from an s1.ChordAngle using its Expanded method.
-func minUpdateInteriorDistanceMaxError(dist: ChordAngle) -> Double {
+func minUpdateInteriorDistanceMaxError(dist: S1ChordAngle) -> Double {
   // This bound includes all source of error, assuming that the input points
   // are normalized. a and b are components of chord length that are
   // perpendicular and parallel to a plane containing the edge respectively.
@@ -150,7 +150,7 @@ func minUpdateInteriorDistanceMaxError(dist: ChordAngle) -> Double {
 /// updateMinDistance computes the distance from a point X to a line segment AB,
 /// and if either the distance was less than the given minDist, or alwaysUpdate is
 /// true, the value and whether it was updated are returned.
-func updateMinDistance(x: S2Point, a: S2Point, b: S2Point, minDist: ChordAngle, alwaysUpdate: Bool) -> (ChordAngle, Bool) {
+func updateMinDistance(x: S2Point, a: S2Point, b: S2Point, minDist: S1ChordAngle, alwaysUpdate: Bool) -> (S1ChordAngle, Bool) {
   let (d, ok) = interiorDist(x: x, a: a, b: b, minDist: minDist, alwaysUpdate: alwaysUpdate)
   if ok {
     // Minimum distance is attained along the edge interior.
@@ -158,7 +158,7 @@ func updateMinDistance(x: S2Point, a: S2Point, b: S2Point, minDist: ChordAngle, 
   }
   // Otherwise the minimum distance is to one of the endpoints.
   let (xa2, xb2) = (x.sub(a).norm2, x.sub(b).norm2)
-  let dist = ChordAngle(value: min(xa2, xb2))
+  let dist = S1ChordAngle(value: min(xa2, xb2))
   if !alwaysUpdate && dist >= minDist {
     return (minDist, false)
   }
@@ -169,7 +169,7 @@ func updateMinDistance(x: S2Point, a: S2Point, b: S2Point, minDist: ChordAngle, 
 /// that the closest point to X is interior to AB. If the closest point is not
 /// interior to AB, interiorDist returns (minDist, false). If alwaysUpdate is set to
 /// false, the distance is only updated when the value exceeds certain the given minDist.
-func interiorDist(x: S2Point, a: S2Point, b: S2Point, minDist: ChordAngle, alwaysUpdate: Bool) -> (ChordAngle, Bool) {
+func interiorDist(x: S2Point, a: S2Point, b: S2Point, minDist: S1ChordAngle, alwaysUpdate: Bool) -> (S1ChordAngle, Bool) {
   // Chord distance of x to both end points a and b.
   let (xa2, xb2) = (x.sub(a).norm2, x.sub(b).norm2)
   // The closest point on AB could either be one of the two vertices (the
@@ -224,14 +224,14 @@ func interiorDist(x: S2Point, a: S2Point, b: S2Point, minDist: ChordAngle, alway
   // deriving one from the other). However, note that the chord length
   // representation itself loses accuracy as the angle approaches π.
   let qr = 1 - sqrt(cx.norm2 / c2)
-  let dist = ChordAngle(value: (xDotC2 / c2) + (qr * qr))
+  let dist = S1ChordAngle(value: (xDotC2 / c2) + (qr * qr))
   if !alwaysUpdate && dist >= minDist {
     return (minDist, false)
   }
   return (dist, true)
 }
 
-func updateEdgePairMinDistance(a0: S2Point, a1: S2Point, b0: S2Point, b1: S2Point, minDist: ChordAngle) -> (ChordAngle, Bool) {
+func updateEdgePairMinDistance(a0: S2Point, a1: S2Point, b0: S2Point, b1: S2Point, minDist: S1ChordAngle) -> (S1ChordAngle, Bool) {
   if minDist == .zero {
     return (.zero, false)
   }
@@ -267,7 +267,7 @@ func edgePairClosestPoints(a0: S2Point, a1: S2Point, b0: S2Point, b1: S2Point) -
   }
   // We save some work by first determining which vertex/edge pair achieves
   // the minimum distance, and then computing the closest point on that edge.
-  var minDist = ChordAngle.zero
+  var minDist = S1ChordAngle.zero
   var ok: Bool
   (minDist, ok) = updateMinDistance(x: a0, a: b0, b: b1, minDist: minDist, alwaysUpdate: true)
   var closestVertex = 0

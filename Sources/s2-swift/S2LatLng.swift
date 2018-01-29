@@ -5,13 +5,12 @@
 
 import Foundation
 
-
-fileprivate let northPoleLat = .pi / 2.0
-fileprivate let southPoleLat = -.pi / 2.0
-
-
 /// Represents a point on the unit sphere as a pair of angles.
+/// LatLng representation is good for distances.
 public struct LatLng {
+  
+  private static let northPoleLat = .pi / 2.0
+  private static let southPoleLat = -.pi / 2.0
   
   let lat: S1Angle
   let lng: S1Angle
@@ -23,28 +22,24 @@ public struct LatLng {
     self.lng = lng
   }
   
-  public init(point: S2Point) {
-    self.init(lat: point.lat, lng: point.lng)
+  public init(vector: R3Vector) {
+    lat = atan2(vector.z, sqrt(vector.x * vector.x + vector.y * vector.y))
+    lng = atan2(vector.y, vector.x)
   }
-  
+    
   // MARK: computed members
   
   /// Returns the normalized version of the LatLng,
   /// with Lat clamped to [-π/2,π/2] and Lng wrapped in [-π,π].
   func normalized() -> LatLng {
-    var lat2 = lat
-    if lat2 > northPoleLat {
-      lat2 = northPoleLat
-    } else if lat2 < southPoleLat {
-      lat2 = southPoleLat
-    }
+    let lat2 = clamp(lat, min: LatLng.southPoleLat, max: LatLng.northPoleLat)
     let lng2 = remainder(lng, 2.0 * .pi)
     return LatLng(lat: lat2, lng: lng2)
   }
   
   // MARK: tests
   
-  /// Returns true iff the LatLng is normalized, with Lat ∈ [-π/2,π/2] and Lng ∈ [-π,π].
+  /// Returns true iff normalized, with Lat ∈ [-π/2,π/2] and Lng ∈ [-π,π].
   var isValid: Bool {
     return abs(lat) <= .pi/2 && abs(lng) <= .pi
   }
@@ -61,22 +56,18 @@ public struct LatLng {
     let dlat = sin(0.5 * (lat2 - lat1))
     let dlng = sin(0.5 * (lng2 - lng1))
     let x = dlat * dlat + dlng * dlng * cos(lat1) * cos(lat2)
-    return 2 * atan2(sqrt(x), sqrt(max(0, 1-x)))
+    return 2 * atan2(sqrt(x), sqrt(max(0, 1 - x)))
   }
 
-  static func lat(_ vector: R3Vector) -> S1Angle {
-    return atan2(vector.z, sqrt(vector.x * vector.x + vector.y * vector.y))
-  }
-  
-  static func lng(_ vector: R3Vector) -> S1Angle {
-    return atan2(vector.y, vector.x)
-  }
-  
   // MARK: conversion
   
   /// Returns a point for the given LatLng.
   func toPoint() -> S2Point {
-    return S2Point(latLng: self)
+    let phi = lat
+    let theta = lng
+    let cosphi = cos(phi)
+    let vector = R3Vector(x: cos(theta) * cosphi, y: sin(theta) * cosphi, z: sin(phi))
+    return S2Point(raw: vector)
   }
   
 }

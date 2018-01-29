@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// ChordAngle represents the angle subtended by a chord (i.e., the straight
+/// Represents the angle subtended by a chord (i.e., the straight
 /// line segment connecting two points on the sphere). Its representation
 /// makes it very efficient for computing and comparing distances, but unlike
 /// Angle it is only capable of representing angles between 0 and π radians.
@@ -13,28 +13,28 @@ import Foundation
 /// to be calculated and compared. Otherwise it is simpler to use Angle.
 /// ChordAngles are represented by the squared chord length, which can
 /// range from 0 to 4. Positive infinity represents an infinite squared length.
-struct ChordAngle {
+struct S1ChordAngle {
   
   let value: Double
   
   /// Zero
-  public static let zero = ChordAngle(value: 0)
+  public static let zero = S1ChordAngle(value: 0)
   
   /// Represents a chord angle smaller than the zero angle.
   /// The only valid operations on a NegativeChordAngle are comparisons and
   /// Angle conversions.
-  public static let negative = ChordAngle(value: -1)
+  public static let negative = S1ChordAngle(value: -1)
   
   /// Represents a chord angle of 90 degrees (a "right angle").
-  public static let right = ChordAngle(value: 2)
+  public static let right = S1ChordAngle(value: 2)
   
   /// Represents a chord angle of 180 degrees (a "straight angle").
   /// This is the maximum finite chord angle.
-  public static let straight = ChordAngle(value: 4)
+  public static let straight = S1ChordAngle(value: 4)
   
   /// Represents a chord angle larger than any finite chord angle.
   /// The only valid operations on an InfChordAngle are comparisons and Angle conversions.
-  public static let infinite = ChordAngle(value: Double.greatestFiniteMagnitude)
+  public static let infinite = S1ChordAngle(value: Double.greatestFiniteMagnitude)
   
   /// The square of the maximum length allowed in a ChordAngle.
   static let maxLength2 = 4.0
@@ -61,7 +61,7 @@ struct ChordAngle {
   /// Note that the argument is automatically clamped to a maximum of 4 to
   /// handle possible roundoff errors. The argument must be non-negative.
   public init(squaredLength length2: Double) {
-    if length2 > ChordAngle.maxLength2 {
+    if length2 > S1ChordAngle.maxLength2 {
       self = .straight
       return
     }
@@ -73,12 +73,12 @@ struct ChordAngle {
   /// returned by either MaxPointError or MaxAngleError. For example:
   ///    a := ChordAngleFromPoints(x, y)
   ///    a1 := a.Expanded(a.MaxPointError())
-  public func expanded(e: Double) -> ChordAngle {
+  public func expanded(e: Double) -> S1ChordAngle {
     // If the angle is special, don't change it. Otherwise clamp it to the valid range.
     if isSpecial() {
       return self
     }
-    return ChordAngle(value: max(0.0, min(ChordAngle.maxLength2, value + e)))
+    return S1ChordAngle(value: max(0.0, min(S1ChordAngle.maxLength2, value + e)))
   }
   
   /// Converts this ChordAngle to an Angle.
@@ -104,7 +104,7 @@ struct ChordAngle {
   
   /// Reports whether this ChordAngle is valid or not.
   public func isValid() -> Bool {
-    return (value >= 0 && value <= ChordAngle.maxLength2) || isSpecial()
+    return (value >= 0 && value <= S1ChordAngle.maxLength2) || isSpecial()
   }
   
   /// Returns the smallest representable ChordAngle larger than this one.
@@ -114,14 +114,14 @@ struct ChordAngle {
   ///   NegativeChordAngle.Successor == 0
   ///   StraightChordAngle.Successor == InfChordAngle
   ///   InfChordAngle.Successor == InfChordAngle
-  public func successor() -> ChordAngle {
-    if value >= ChordAngle.maxLength2 {
+  public func successor() -> S1ChordAngle {
+    if value >= S1ChordAngle.maxLength2 {
       return .infinite
     }
     if value < 0 {
       return .zero
     }
-    return ChordAngle(value: nextafter(value, 10.0))
+    return S1ChordAngle(value: nextafter(value, 10.0))
   }
   
   /// Returns the largest representable ChordAngle less than this one.
@@ -130,14 +130,14 @@ struct ChordAngle {
   ///   InfChordAngle.Predecessor == StraightChordAngle
   ///   ChordAngle(0).Predecessor == NegativeChordAngle
   ///   NegativeChordAngle.Predecessor == NegativeChordAngle
-  public func predecessor() -> ChordAngle {
+  public func predecessor() -> S1ChordAngle {
     if value <= 0 {
       return .negative
     }
-    if value > ChordAngle.maxLength2 {
+    if value > S1ChordAngle.maxLength2 {
       return .straight
     }
-    return ChordAngle(value: nextafter(value, -10.0))
+    return S1ChordAngle(value: nextafter(value, -10.0))
   }
   
   /// Returns the maximum error size for a ChordAngle constructed
@@ -159,7 +159,7 @@ struct ChordAngle {
   
   /// Adds the other ChordAngle to this one and returns the resulting value.
   /// This method assumes the ChordAngles are not special.
-  public func add(other: ChordAngle) -> ChordAngle {
+  public func add(other: S1ChordAngle) -> S1ChordAngle {
     // Note that this method (and Sub) is much more efficient than converting
     // the ChordAngle to an Angle and adding those and converting back. It
     // requires only one square root plus a few additions and multiplications.
@@ -169,7 +169,7 @@ struct ChordAngle {
       return self
     }
     // Clamp the angle sum to at most 180 degrees.
-    if value + other.value >= ChordAngle.maxLength2 {
+    if value + other.value >= S1ChordAngle.maxLength2 {
       return .straight
     }
     // Let a and b be the (non-squared) chord lengths, and let c = a+b.
@@ -179,12 +179,12 @@ struct ChordAngle {
     //                 cos(X) = sqrt(1 - sin^2(X))
     let x = value * (1 - 0.25 * other.value)
     let y = other.value * (1 - 0.25 * value)
-    return ChordAngle(value: min(ChordAngle.maxLength2, x + y + 2 * sqrt(x * y)))
+    return S1ChordAngle(value: min(S1ChordAngle.maxLength2, x + y + 2 * sqrt(x * y)))
   }
   
   /// Subtracts the other ChordAngle from this one and returns the resulting
   /// value. This method assumes the ChordAngles are not special.
-  public func sub(other: ChordAngle) -> ChordAngle {
+  public func sub(other: S1ChordAngle) -> S1ChordAngle {
     if other.value == 0 {
       return self
     }
@@ -193,7 +193,7 @@ struct ChordAngle {
     }
     let x = value * (1 - 0.25 * other.value)
     let y = other.value * (1 - 0.25 * value)
-    return ChordAngle(value: max(0.0, x + y - 2 * sqrt(x * y)))
+    return S1ChordAngle(value: max(0.0, x + y - 2 * sqrt(x * y)))
   }
   
   // Returns the sine of this chord angle. This method is more efficient
@@ -227,13 +227,13 @@ struct ChordAngle {
   
 }
 
-extension ChordAngle: Comparable {
+extension S1ChordAngle: Comparable {
   
-  public static func ==(lhs: ChordAngle, rhs: ChordAngle) -> Bool {
+  public static func ==(lhs: S1ChordAngle, rhs: S1ChordAngle) -> Bool {
     return lhs.value == rhs.value
   }
   
-  public static func <(lhs: ChordAngle, rhs: ChordAngle) -> Bool {
+  public static func <(lhs: S1ChordAngle, rhs: S1ChordAngle) -> Bool {
     return lhs.value < rhs.value
   }
   

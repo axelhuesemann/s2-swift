@@ -9,7 +9,7 @@ import Foundation
 // Polyline represents a sequence of zero or more vertices connected by
 // straight edges (geodesics). Edges of length 0 and 180 degrees are not
 // allowed, i.e. adjacent vertices should not be identical or antipodal.
-public struct S2Polyline: Shape, S2Region {
+public struct S2Polyline: S2Shape, S2Region {
  
   private let points: [S2Point]
   
@@ -21,7 +21,7 @@ public struct S2Polyline: Shape, S2Region {
 
   // PolylineFromLatLngs creates a new Polyline from the given LatLngs.
   public init(latLngs: [LatLng]) {
-    let points = latLngs.map { S2Point(latLng: $0) }
+    let points = latLngs.map { $0.toPoint() }
     self.init(points: points)
   }
 

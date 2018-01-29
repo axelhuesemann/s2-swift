@@ -308,7 +308,7 @@ public struct CellId {
   /// Return the center of the CellID in (s,t)-space.
   func centerST() -> R2Point {
     let (_, si, ti) = faceSiTi()
-    return R2Point(x: S2Cube.siTiToST(si: UInt32(si)), y: S2Cube.siTiToST(si: UInt32(ti)))
+    return R2Point(x: CellId.siTiToST(si: UInt32(si)), y: CellId.siTiToST(si: UInt32(ti)))
   }
   
   /// Returns the edge length of this CellID in (s,t)-space at the given level.
@@ -328,8 +328,8 @@ public struct CellId {
   /// the (u,v) rectangle covered by the cell.
   func centerUV() -> R2Point {
     let (_, si, ti) = faceSiTi()
-    let x = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(si)))
-    let y = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(ti)))
+    let x = S2Cube.stToUV(CellId.siTiToST(si: UInt32(si)))
+    let y = S2Cube.stToUV(CellId.siTiToST(si: UInt32(ti)))
     return R2Point(x: x, y: y)
   }
   
@@ -349,7 +349,7 @@ public struct CellId {
   /// Returns the center of the s2 cell on the sphere as a LatLng.
   public func latLng() -> LatLng {
     let point = self.point()
-    return LatLng(point: point)
+    return LatLng(vector: point.v)
   }
 
   // MARK: cell hierarchy
@@ -547,6 +547,29 @@ public struct CellId {
       ci = parent
     }
     return ci
+  }
+  
+  // MARK: discretizing
+  // move this somewhere else? has more to do with cells
+  
+  static let maxSiTi = CellId.maxSize << 1
+  
+  /// Transforms the (si, ti) coordinates to a (not necessarily
+  /// unit length) Point on the given face.
+  static func faceSiTiToXYZ(face: Int, si: UInt32, ti: UInt32) -> S2Point {
+    let (s, t) = (siTiToST(si: si), siTiToST(si: ti))
+    let (u, v) = (S2Cube.stToUV(s), S2Cube.stToUV(t))
+    let r3 = S2Cube.faceUVToXYZ(face: face, u: u, v: v)
+    return S2Point(raw: r3)
+  }
+  
+  /// Converts an si- or ti-value to the corresponding s- or t-value.
+  /// Value is capped at 1.0 because there is no DCHECK in Go.
+  static func siTiToST(si: UInt32) -> Double {
+    if si > maxSiTi {
+      return 1.0
+    }
+    return Double(si) / Double(maxSiTi)
   }
   
   // MARK: math

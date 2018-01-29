@@ -46,8 +46,8 @@ extension PaddedCell {
       let ijSize = CellId.sizeIJ(level)
       self.iLo = iLo & -ijSize
       self.jLo = jLo & -ijSize
-      let u = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * self.iLo + ijSize)))
-      let v = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * self.jLo + ijSize)))
+      let u = S2Cube.stToUV(CellId.siTiToST(si: UInt32(2 * self.iLo + ijSize)))
+      let v = S2Cube.stToUV(CellId.siTiToST(si: UInt32(2 * self.jLo + ijSize)))
       middle = R2Rect(x: R1Interval(lo: u - padding, hi: u + padding), y: R1Interval(lo: v - padding, hi: v + padding))
       self.orientation = orientation
     }
@@ -70,8 +70,8 @@ extension PaddedCell {
     jLo = parent.jLo + j * ijSize
     // We could compute middle lazily because it is not needed the majority of the
     // time (i.e., for cells where the recursion terminates).
-    let u = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * iLo + ijSize)))
-    let v = S2Cube.stToUV(S2Cube.siTiToST(si: UInt32(2 * jLo + ijSize)))
+    let u = S2Cube.stToUV(CellId.siTiToST(si: UInt32(2 * iLo + ijSize)))
+    let v = S2Cube.stToUV(CellId.siTiToST(si: UInt32(2 * jLo + ijSize)))
     middle = R2Rect(x: R1Interval(lo: u - padding, hi: u + padding), y: R1Interval(lo: v - padding, hi: v + padding))
     // For each child, one corner of the bound is taken directly from the parent
     // while the diagonally opposite corner is taken from middle().
@@ -88,7 +88,7 @@ extension PaddedCell {
     let ijSize = CellId.sizeIJ(level)
     let si = uint32(2 * iLo + ijSize)
     let ti = uint32(2 * jLo + ijSize)
-    return S2Cube.faceSiTiToXYZ(face: id.face(), si: si, ti: ti)
+    return CellId.faceSiTiToXYZ(face: id.face(), si: si, ti: ti)
   }
   
   /// Returns the (i,j) coordinates for the child cell at the given traversal
@@ -110,7 +110,7 @@ extension PaddedCell {
       i += ijSize
       j += ijSize
     }
-    return S2Cube.faceSiTiToXYZ(face: id.face(), si: UInt32(2 * i), ti: UInt32(2 * j))
+    return CellId.faceSiTiToXYZ(face: id.face(), si: UInt32(2 * i), ti: UInt32(2 * j))
   }
   
   /// Returns the vertex where the space-filling curve exits this cell.
@@ -125,7 +125,7 @@ extension PaddedCell {
     } else {
       j += ijSize
     }
-    return S2Cube.faceSiTiToXYZ(face: id.face(), si: UInt32(2 * i), ti: UInt32(2 * j))
+    return CellId.faceSiTiToXYZ(face: id.face(), si: UInt32(2 * i), ti: UInt32(2 * j))
   }
   
   /// Returns the smallest CellID that contains all descendants of this
@@ -150,11 +150,11 @@ extension PaddedCell {
       }
     }
     let ijSize = CellId.sizeIJ(level)
-    let stX = S2Cube.siTiToST(si: UInt32(2 * iLo + ijSize))
+    let stX = CellId.siTiToST(si: UInt32(2 * iLo + ijSize))
     if rect.x.contains(S2Cube.stToUV(stX)) {
       return id
     }
-    let stY = S2Cube.siTiToST(si: UInt32(2 * jLo + ijSize))
+    let stY = CellId.siTiToST(si: UInt32(2 * jLo + ijSize))
     if rect.y.contains(S2Cube.stToUV(stY)) {
       return id
     }

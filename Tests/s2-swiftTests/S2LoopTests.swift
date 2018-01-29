@@ -202,7 +202,7 @@ class S2LoopTests: XCTestCase {
     let arctic80Inv = invert(l: arctic80)
     // The highest latitude of each edge is attained at its midpoint.
     let mid = arctic80Inv.vertices[0].v.add(arctic80Inv.vertices[1].v).mul(0.5)
-    XCTAssertEqual(arctic80Inv.rectBound().lat.hi, Double(LatLng(point: S2Point(raw: mid)).lat), accuracy: 10 * Cell.dblEpsilon)
+    XCTAssertEqual(arctic80Inv.rectBound().lat.hi, Double(S2Point(raw: mid).lat), accuracy: 10 * Cell.dblEpsilon)
   }
   
   func testLoopCapBound() {
@@ -359,7 +359,7 @@ class S2LoopTests: XCTestCase {
   func testRegion() {
     let coords = [(37.5, 122.5), (37.5, 122), (37, 122), (37, 122.5)]
     let latLngs = coords.map { llDegrees($0, $1) }
-    let points = latLngs.map { S2Point(latLng: $0) }
+    let points = latLngs.map { $0.toPoint() }
     let loop = S2Loop(points: points)
     XCTAssertNotNil(loop)
     // print("coords \(latLngs)")
@@ -368,7 +368,7 @@ class S2LoopTests: XCTestCase {
   }
 
   func testLoopRegularLoop() {
-    let loop = S2Loop.regularLoop(center: S2Point(latLng: llDegrees(80, 135)), radius: 20, numVertices: 4)
+    let loop = S2Loop.regularLoop(center: llDegrees(80, 135).toPoint(), radius: 20, numVertices: 4)
     XCTAssertEqual(loop.vertices.count, 4, "RegularLoop with 4 vertices should have 4 vertices.")
   }
   
@@ -778,7 +778,7 @@ class S2LoopTests: XCTestCase {
       while !loop.isValid {
         // We limit longitude to the range [0, 90] to ensure that the loop is
         // degenerate (as opposed to following the entire equator).
-        let vertices = (0..<numVertices).map { _ in S2Point(latLng: llDegrees(0, randomFloat64() * .pi / 2)) }
+        let vertices = (0..<numVertices).map { _ in llDegrees(0, randomFloat64() * .pi / 2).toPoint() }
         loop.vertices = vertices
         break
       }

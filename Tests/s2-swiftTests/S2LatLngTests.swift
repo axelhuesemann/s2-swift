@@ -67,7 +67,7 @@ class S2LatLngTests: XCTestCase {
       XCTAssertEqual(p.x, x, accuracy: eps)
       XCTAssertEqual(p.y, y, accuracy: eps)
       XCTAssertEqual(p.z, z, accuracy: eps)
-      let ll2 = LatLng(point: p)
+      let ll2 = LatLng(vector: p.v)
       // We need to be careful here, since if the latitude is +/- 90, any longitude
       // is now a valid conversion.
       let isPolar = (lat == 90 || lat == -90)

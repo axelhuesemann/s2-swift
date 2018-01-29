@@ -136,7 +136,7 @@ class S2CellTests: XCTestCase {
       let c = Cell(latLng: llDegrees(lat, lng))
       let rect = c.rectBound()
       for i in 0..<4 {
-        XCTAssertTrue(rect.contains(LatLng(point: c.vertex(i))))
+        XCTAssertTrue(rect.contains(LatLng(vector: c.vertex(i).v)))
       }
     }
   }

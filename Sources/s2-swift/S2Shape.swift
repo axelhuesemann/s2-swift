@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Defines the types of geometry dimensions that a Shape supports.
+/// Defines the types of geometry dimensions that a S2Shape supports.
 public enum ShapeDimension: Int {
   case pointGeometry
   case polylineGeometry
@@ -96,7 +96,7 @@ extension ReferencePoint {
 /// sufficient for most purposes, but the chain representation is useful for
 /// certain algorithms such as intersection (see BooleanOperation).
 /// Defines an interface for any S2 type that needs to be indexable.
-public protocol Shape {
+public protocol S2Shape {
   /// Returns the number of edges in this shape.
   func numEdges() -> Int
   /// Returns endpoints for the given edge index.
@@ -155,11 +155,6 @@ public protocol Shape {
   func dimension() -> ShapeDimension
 }
 
-//extension Shape: Hashable, Equatable {
-//  var hashValue: Int
-//  func ==(lhs: Shape, rhs: Shape) -> Bool
-//}
-//
 /// Defines different ways of reporting edge intersections.
 enum CrossingType {
   // CrossingTypeInterior reports intersections that occur at a point
@@ -266,7 +261,7 @@ extension RangeIterator {
 /// at infinity that is guaranteed to be outside the loop.
 ///
 /// This function requires that the given Shape have an interior.
-func referencePoint(shape: Shape) -> ReferencePoint {
+func referencePoint(shape: S2Shape) -> ReferencePoint {
   if shape.numEdges() == 0 {
     // A shape with no edges is defined to be full if and only if it
     // contains an empty loop.
@@ -315,7 +310,7 @@ func referencePoint(shape: Shape) -> ReferencePoint {
 /// referencePointAtVertex reports whether the given vertex is unbalanced, and
 /// returns a ReferencePoint indicating if the point is contained.
 /// Otherwise returns false.
-func referencePointAtVertex(shape: Shape, vTest: S2Point) -> ReferencePoint? {
+func referencePointAtVertex(shape: S2Shape, vTest: S2Point) -> ReferencePoint? {
   // Let P be an unbalanced vertex. Vertex P is defined to be inside the
   // region if the region contains a particular direction vector starting from
   // P, namely the direction p.Ortho(). This can be calculated using
@@ -347,7 +342,7 @@ func referencePointAtVertex(shape: Shape, vTest: S2Point) -> ReferencePoint? {
 ///
 /// Polygon boundaries are treated as being semi-open (see ContainsPointQuery
 /// and VertexModel for other options).
-func containsBruteForce(shape: Shape, point: S2Point) -> Bool {
+func containsBruteForce(shape: S2Shape, point: S2Point) -> Bool {
   if !shape.hasInterior() {
     return false
   }
@@ -385,7 +380,7 @@ extension ContainsVertexQuery {
     edgeMap = [:]
   }
 
-  /// Sdds the edge between target and v with the given direction.
+  /// Adds the edge between target and v with the given direction.
   /// (+1 = outgoing, -1 = incoming, 0 = degenerate).
   mutating func addEdge(v: S2Point, direction: Int) {
     let value = edgeMap[v] ?? 0

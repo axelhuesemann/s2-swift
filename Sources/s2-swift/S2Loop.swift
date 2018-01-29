@@ -23,23 +23,23 @@ import Foundation
 /// preserve the invariant that every loop can be represented as a vertex
 /// chain, they are defined as having exactly one vertex each (see EmptyLoop
 /// and FullLoop).
-public struct S2Loop: Shape, S2Region {
+public struct S2Loop: S2Shape, S2Region {
   
-  var vertices: [S2Point]
+  let vertices: [S2Point]
   
   // originInside keeps a precomputed value whether this loop contains the origin
   // versus computing from the set of vertices every time.
-  var originInside: Bool
+  let originInside: Bool
   
   // bound is a conservative bound on all points contained by this loop.
   // If l.ContainsPoint(P), then l.bound.ContainsPoint(P).
-  var bound: S2Rect
+  let bound: S2Rect
   
   // Since "bound" is not exact, it is possible that a loop A contains
   // another loop B whose bounds are slightly larger. subregionBound
   // has been expanded sufficiently to account for this error, i.e.
   // if A.Contains(B), then A.subregionBound.Contains(B.bound).
-  var subregionBound: S2Rect
+  let subregionBound: S2Rect
   
   // depth is the nesting depth of this Loop if it is contained by a Polygon
   // or other shape and is used to determine if this loop represents a hole
@@ -155,66 +155,6 @@ public struct S2Loop: Shape, S2Region {
       b = S2Rect(lat: R1Interval(lo: -.pi / 2.0, hi: b.lat.hi), lng: S1Interval.full)
     }
     return (bound: b, subregionBound: b.expandForSubregions())
-  }
-  
-  static func xcomputeBounds(vertices: [S2Point]) -> (originInside: Bool, bound: S2Rect, subregionBound: S2Rect) {
-    //
-    switch vertices.count {
-    case 1:
-      // this is the special empty or full loop
-      // the origin depends on if the vertex is in the southern hemisphere or not.
-      let originInside = vertices[0].z < 0
-      let bound = originInside ? S2Rect.full : S2Rect.empty
-      return (originInside: originInside, bound: bound, subregionBound: bound)
-    case 0, 2:
-      // these are incomplete loops
-      return (originInside: false, bound: S2Rect.empty, subregionBound: S2Rect.empty)
-    default: break
-    }
-    // Point containment testing is done by counting edge crossings starting
-    // at a fixed point on the sphere (OriginPoint). We need to know whether
-    // the reference point (OriginPoint) is inside or outside the loop before
-    // we can construct the S2ShapeIndex. We do this by first guessing that
-    // it is outside, and then seeing whether we get the correct containment
-    // result for vertex 1. If the result is incorrect, the origin must be
-    // inside the loop.
-    // A loop with consecutive vertices A,B,C contains vertex B if and only if
-    // the fixed vector R = B.Ortho is contained by the wedge ABC. The
-    // wedge is closed at A and open at C, i.e. the point B is inside the loop
-    // if A = R but not if C = R. This convention is required for compatibility
-    // with VertexCrossing. (Note that we can't use OriginPoint
-    // as the fixed vector because of the possibility that B == OriginPoint.)
-    let ortho = S2Point(raw: vertices[1].v.ortho())
-    let v1Inside = S2Point.orderedCCW(ortho, vertices[0], vertices[2], vertices[1])
-    let originInside = v1Inside != S2Loop.contains(vertices[1], vertices: vertices, originInside: false)
-    // We *must* call initBound before initIndex, because initBound calls
-    // ContainsPoint(s2.Point), and ContainsPoint(s2.Point) does a bounds check whenever the
-    // index is not fresh (i.e., the loop has been added to the index but the
-    // index has not been updated yet).
-    // The bounding rectangle of a loop is not necessarily the same as the
-    // bounding rectangle of its vertices. First, the maximal latitude may be
-    // attained along the interior of an edge. Second, the loop may wrap
-    // entirely around the sphere (e.g. a loop that defines two revolutions of a
-    // candy-cane stripe). Third, the loop may include one or both poles.
-    // Note that a small clockwise loop near the equator contains both poles.
-    var bounder = RectBounder()
-    for p in vertices {
-      bounder.add(point: p)
-    }
-    bounder.add(point: vertices[0])
-    var b = bounder.rectBound()
-    if S2Loop.contains(S2Point(x: 0, y: 0, z: 1), vertices: vertices, originInside: originInside) {
-      b = S2Rect(lat: R1Interval(lo: b.lat.lo, hi: .pi / 2.0), lng: S1Interval.full)
-    }
-    // If a loop contains the south pole, then either it wraps entirely
-    // around the sphere (full longitude range), or it also contains the
-    // north pole in which case b.Lng.isFull due to the test above.
-    // Either way, we only need to do the south pole containment test if
-    // b.Lng.isFull.
-    if b.lng.isFull && S2Loop.contains(S2Point(x: 0, y: 0, z: -1), vertices: vertices, originInside: originInside) {
-      b = S2Rect(lat: R1Interval(lo: -.pi / 2.0, hi: b.lat.hi), lng: S1Interval.full)
-    }
-    return (originInside: originInside, bound: b, subregionBound: b.expandForSubregions())
   }
   
   /// Returns true if the loop contains the point
@@ -418,9 +358,6 @@ public struct S2Loop: Shape, S2Region {
   public func edge(_ i: Int) -> Edge {
     return Edge(v0: vertex(i), v1: vertex(i + 1))
   }
-//  public func edge(_ i: Int) -> (S2Point, S2Point) {
-//    return (vertex(i), vertex(i + 1))
-//  }
 
   /// Reports the number of contiguous edge chains in the Loop.
   public func numChains() -> Int {
@@ -477,14 +414,11 @@ public struct S2Loop: Shape, S2Region {
   /// the left of the vertex chain.
   ///This requires: 0 <= i < 2 * len(vertices)
   func orientedVertex(_ i: Int) -> S2Point {
-    var j = i - vertices.count
-    if j < 0 {
-      j = i
-    }
-    if isHole() {
-      j = vertices.count - 1 - j
-    }
-    return vertex(i)
+    // normalize index to 0..<count
+    let i = (i >= vertices.count) ? i - vertices.count : i
+    // revert if hole
+    let j = isHole() ? vertices.count - 1 - i : i
+    return vertex(j)
   }
   
   // NumVertices returns the number of vertices in this loop.
@@ -690,6 +624,8 @@ public struct S2Loop: Shape, S2Region {
     }
     return inside
   }
+  
+  // MARK: contains / intersects loop
   
   // Contains reports whether the region contained by this loop is a superset of the
   // region contained by the given other loop.
@@ -956,10 +892,11 @@ public struct S2Loop: Shape, S2Region {
   
   // Normalize inverts the loop if necessary so that the area enclosed by the loop
   // is at most 2*pi.
-  mutating func normalize() {
+  func normalized() -> S2Loop {
     if !isNormalized() {
-      invert()
+      return inverted()
     }
+    return self
   }
   
   // Invert reverses the order of the loop vertices, effectively complementing the
@@ -967,28 +904,29 @@ public struct S2Loop: Shape, S2Region {
   // AB, BC, CD, DA) becomes the loop DCBA (with edges DC, CB, BA, AD).
   // Notice that the last edge is the same in both cases except that its
   // direction has been reversed.
-  mutating func invert() {
-    index.reset()
-    if isEmptyOrFull() {
-      if isFull {
-        vertices[0] = emptyLoopPoint
-      } else {
-        vertices[0] = fullLoopPoint
-      }
+  func inverted() -> S2Loop {
+    let newVertices: [S2Point]
+    if !isEmptyOrFull() {
+      // non-special loops, reverse the slice of vertices
+      newVertices = vertices.reversed()
+    } else if isFull {
+      // full -> empty
+      newVertices = [emptyLoopPoint]
     } else {
-      // For non-special loops, reverse the slice of vertices.
-      vertices.reverse()
+      // empty -> full
+      newVertices = [fullLoopPoint]
     }
     // originInside must be set correctly before building the ShapeIndex.
-    originInside = !originInside
+    let newOriginInside = !originInside
+    let newBound: S2Rect
+    let newSubregionBound: S2Rect
     if bound.lat.lo > -.pi / 2 && bound.lat.hi < .pi / 2 {
       // The complement of this loop contains both poles.
-      bound = S2Rect.full
-      subregionBound = bound
+      (newBound, newSubregionBound) = (S2Rect.full, S2Rect.full)
     } else {
-      self.originInside = S2Loop.computeOrigin(vertices: vertices)
+      (newBound, newSubregionBound) = S2Loop.computeBounds(vertices: newVertices, originInside: newOriginInside)
     }
-    index.add(shape: self)
+    return S2Loop(vertices: newVertices, originInside: newOriginInside, bound: newBound, subregionBound: newSubregionBound)
   }
   
   // ContainsNested reports whether the given loops is contained within this loop.

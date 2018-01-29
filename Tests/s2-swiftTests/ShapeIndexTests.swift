@@ -9,7 +9,7 @@ import XCTest
 
 // testShape is a minimal implementation of the Shape interface for use in testing
 // until such time as there are other s2 types that implement it.
-struct TestShape: Shape {
+struct TestShape: S2Shape {
   
   func referencePoint() -> ReferencePoint {
     return ReferencePoint(origin: true, contained: true)
@@ -138,7 +138,7 @@ class S2ShapeIndexTests: XCTestCase {
   
   // Tests if the given Shape contains the center of the given CellID,
   // and that this matches the expected value of indexContainsCenter.
-  func validateInterior(shape: Shape?, ci: CellId, indexContainsCenter: Bool) {
+  func validateInterior(shape: S2Shape?, ci: CellId, indexContainsCenter: Bool) {
     if let shape = shape {
       XCTAssertEqual(containsBruteForce(shape: shape, point: ci.point()), indexContainsCenter)
     } else if indexContainsCenter {

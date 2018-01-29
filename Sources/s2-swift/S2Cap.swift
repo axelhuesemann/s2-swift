@@ -157,83 +157,6 @@ public struct S2Cap: S2Region {
     return isFull || center.v.sub(point.v).norm2 < 2 * height
   }
 
-  // MARK: contains / intersects Cell
-  
-  /// Reports whether the cap contains the given cell.
-  public func contains(_ cell: Cell) -> Bool {
-    // If the cap does not contain all cell vertices, return false.
-    var vertices = [S2Point]()
-    for k in 0..<4 {
-      let vertex = cell.vertex(k)
-      vertices.append(vertex)
-      if !contains(vertex) {
-        return false
-      }
-    }
-    // Otherwise, return true if the complement of the cap does not intersect the cell.
-    return !complement().intersects(cell, vertices: vertices)
-  }
-  
-  /// Reports whether the cap intersects the cell.
-  public func intersects(_ cell: Cell) -> Bool {
-    // If the cap contains any cell vertex, return true.
-    var vertices = [S2Point]()
-    for k in 0..<4 {
-      let vertex = cell.vertex(k)
-      vertices.append(vertex)
-      if contains(vertex) {
-        return true
-      }
-    }
-    return intersects(cell, vertices: vertices)
-  }
-  
-  /// Reports whether the cap intersects any point of the cell excluding
-  /// its vertices (which are assumed to already have been checked).
-  func intersects(_ cell: Cell, vertices: [S2Point]) -> Bool {
-    // If the cap is a hemisphere or larger, the cell and the complement of the cap
-    // are both convex. Therefore since no vertex of the cell is contained, no other
-    // interior point of the cell is contained either.
-    if height >= 1 {
-      return false
-    }
-    // We need to check for empty caps due to the center check just below.
-    if isEmpty {
-      return false
-    }
-    // Optimization: return true if the cell contains the cap center. This allows half
-    // of the edge checks below to be skipped.
-    if cell.contains(center) {
-      return true
-    }
-    // At this point we know that the cell does not contain the cap center, and the cap
-    // does not contain any cell vertex. The only way that they can intersect is if the
-    // cap intersects the interior of some edge.
-    let sin2Angle = height * (2 - height)
-    for k in 0..<4 {
-      let edge = cell.edge(k)
-      let dot = center.v.dot(edge.v)
-      if dot > 0.0 {
-        // The center is in the interior half-space defined by the edge. We do not need
-        // to consider these edges, since if the cap intersects this edge then it also
-        // intersects the edge on the opposite side of the cell, because the center is
-        // not contained with the cell.
-        continue
-      }
-      // The norm2 factor is necessary because "edge" is not normalized.
-      if dot * dot > sin2Angle * edge.v.norm2 {
-        return false
-      }
-      // Otherwise, the great circle containing this edge intersects the interior of the cap. We just
-      // need to check whether the point of closest approach occurs between the two edge endpoints.
-      let dir = edge.v.cross(center.v)
-      if dir.dot(vertices[k].v) < 0 && dir.dot(vertices[(k+1) & 3].v) > 0 {
-        return true
-      }
-    }
-    return false
-  }
-  
   // MARK: computed members
   
   /// Returns the cap's radius.
@@ -321,25 +244,7 @@ public struct S2Cap: S2Region {
     return S2Rect(lat: lat, lng: lng)
   }
   
-  /// Computes a covering of the Cap. In general the covering
-  /// consists of at most 4 cells except for very large caps, which may need
-  /// up to 6 cells. The output is not sorted.
-  func cellUnionBound() -> CellUnion {
-    // TODO(roberts): The covering could be made quite a bit tighter by mapping
-    // the cap to a rectangle in (i,j)-space and finding a covering for that.
-    // Find the maximum level such that the cap contains at most one cell vertex
-    // and such that CellID.AppendVertexNeighbors() can be called.
-    let level = S2CellMetric.minWidth.maxLevel(radius()) - 1
-    // If level < 0, more than three face cells are required.
-    if level < 0 {
-      let cellIds = (0..<6).map { CellId(face: $0) }
-      return CellUnion(cellIds: cellIds)
-    }
-    // The covering consists of the 4 cells at the given level that share the
-    // cell vertex that is closest to the cap center.
-    let cellIds = CellId(point: center).vertexNeighbors(level)
-    return CellUnion(cellIds: cellIds)
-  }
+  // MARK: arithmetic
   
   /// Increases the cap if necessary to include the given point. If this cap is empty,
   /// then the center is set to the point with a zero height. p must be unit-length.
@@ -355,8 +260,6 @@ public struct S2Cap: S2Region {
     return S2Cap(centerNormalized: center, height: height)
   }
 
-  // MARK: arithmetic 
-  
   /// Increases the cap height if necessary to include the other cap. If this cap is empty,
   /// it is set to the other cap.
   public func add(_ cap: S2Cap) -> S2Cap {
@@ -396,6 +299,107 @@ public struct S2Cap: S2Region {
     return 2 * d * d
   }
 
+}
+
+extension S2Cap {
+
+  // MARK: cell related methods
+  
+  /// Reports whether the cap contains the given cell.
+  public func contains(_ cell: Cell) -> Bool {
+    // If the cap does not contain all cell vertices, return false.
+    var vertices = [S2Point]()
+    for k in 0..<4 {
+      let vertex = cell.vertex(k)
+      vertices.append(vertex)
+      if !contains(vertex) {
+        return false
+      }
+    }
+    // Otherwise, return true if the complement of the cap does not intersect the cell.
+    return !complement().intersects(cell, vertices: vertices)
+  }
+  
+  /// Reports whether the cap intersects the cell.
+  public func intersects(_ cell: Cell) -> Bool {
+    // If the cap contains any cell vertex, return true.
+    var vertices = [S2Point]()
+    for k in 0..<4 {
+      let vertex = cell.vertex(k)
+      vertices.append(vertex)
+      if contains(vertex) {
+        return true
+      }
+    }
+    return intersects(cell, vertices: vertices)
+  }
+  
+  /// Reports whether the cap intersects any point of the cell excluding
+  /// its vertices (which are assumed to already have been checked).
+  func intersects(_ cell: Cell, vertices: [S2Point]) -> Bool {
+    // If the cap is a hemisphere or larger, the cell and the complement of the cap
+    // are both convex. Therefore since no vertex of the cell is contained, no other
+    // interior point of the cell is contained either.
+    if height >= 1 {
+      return false
+    }
+    // We need to check for empty caps due to the center check just below.
+    if isEmpty {
+      return false
+    }
+    // Optimization: return true if the cell contains the cap center. This allows half
+    // of the edge checks below to be skipped.
+    if cell.contains(center) {
+      return true
+    }
+    // At this point we know that the cell does not contain the cap center, and the cap
+    // does not contain any cell vertex. The only way that they can intersect is if the
+    // cap intersects the interior of some edge.
+    let sin2Angle = height * (2 - height)
+    for k in 0..<4 {
+      let edge = cell.edge(k)
+      let dot = center.v.dot(edge.v)
+      if dot > 0.0 {
+        // The center is in the interior half-space defined by the edge. We do not need
+        // to consider these edges, since if the cap intersects this edge then it also
+        // intersects the edge on the opposite side of the cell, because the center is
+        // not contained with the cell.
+        continue
+      }
+      // The norm2 factor is necessary because "edge" is not normalized.
+      if dot * dot > sin2Angle * edge.v.norm2 {
+        return false
+      }
+      // Otherwise, the great circle containing this edge intersects the interior of the cap. We just
+      // need to check whether the point of closest approach occurs between the two edge endpoints.
+      let dir = edge.v.cross(center.v)
+      if dir.dot(vertices[k].v) < 0 && dir.dot(vertices[(k+1) & 3].v) > 0 {
+        return true
+      }
+    }
+    return false
+  }
+  
+  /// Computes a covering of the Cap. In general the covering
+  /// consists of at most 4 cells except for very large caps, which may need
+  /// up to 6 cells. The output is not sorted.
+  func cellUnionBound() -> CellUnion {
+    // TODO(roberts): The covering could be made quite a bit tighter by mapping
+    // the cap to a rectangle in (i,j)-space and finding a covering for that.
+    // Find the maximum level such that the cap contains at most one cell vertex
+    // and such that CellID.AppendVertexNeighbors() can be called.
+    let level = S2CellMetric.minWidth.maxLevel(radius()) - 1
+    // If level < 0, more than three face cells are required.
+    if level < 0 {
+      let cellIds = (0..<6).map { CellId(face: $0) }
+      return CellUnion(cellIds: cellIds)
+    }
+    // The covering consists of the 4 cells at the given level that share the
+    // cell vertex that is closest to the cap center.
+    let cellIds = CellId(point: center).vertexNeighbors(level)
+    return CellUnion(cellIds: cellIds)
+  }
+  
 }
 
 extension S2Cap: CustomStringConvertible, Approximatable {

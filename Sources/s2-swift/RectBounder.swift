@@ -34,7 +34,7 @@ struct RectBounder {
 
   /// Adds the given point to the chain. The Point must be unit length.
   mutating func add(point b: S2Point) {
-    let bLL = LatLng(point: b)
+    let bLL = LatLng(vector: b.v)
     if bound.isEmpty {
       a = b
       aLL = bLL

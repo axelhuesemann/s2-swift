@@ -281,7 +281,7 @@ public struct Cell: S2Region {
     // We use the cell center in (u,v)-space as the cap axis.  This vector is very close
     // to GetCenter() and faster to compute.  Neither one of these vectors yields the
     // bounding cap with minimal surface area, but they are both pretty close.
-    let p = S2Point(raw: S2Cube(face: Int(face), u: uv.center.x, v: uv.center.y).vector().normalized())
+    let p = S2Point(raw: S2Cube(face: Int(face), u: uv.center.x, v: uv.center.y).vector())
     var cap = S2Cap(point: p)
     for k in 0..<4 {
       cap = cap.add(vertex(k))
@@ -392,7 +392,7 @@ public struct Cell: S2Region {
   // edgeDistance reports the distance from a Point P to a given Cell edge. The point
   // P is given by its dot product, and the uv edge by its normal in the
   // given coordinate value.
-  func edgeDistance(ij: Double, uv: Double) -> ChordAngle {
+  func edgeDistance(ij: Double, uv: Double) -> S1ChordAngle {
     // Let P by the target point and let R be the closest point on the given
     // edge AB.  The desired distance PR can be expressed as PR^2 = PQ^2 + QR^2
     // where Q is the point P projected onto the plane through the great circle
@@ -404,12 +404,12 @@ public struct Cell: S2Region {
     // and we can compute OQ^2 = 1 - PQ^2 using the Pythagorean theorem.
     // (This calculation loses accuracy as angle POQ approaches Pi/2.)
     let qr = 1 - sqrt(1 - pq2)
-    return ChordAngle(squaredLength: pq2 + qr * qr)
+    return S1ChordAngle(squaredLength: pq2 + qr * qr)
   }
   
   // distanceInternal reports the distance from the given point to the interior of
   // the cell if toInterior is true or to the boundary of the cell otherwise.
-  func distanceInternal(targetXYZ: S2Point, toInterior: Bool) -> ChordAngle {
+  func distanceInternal(targetXYZ: S2Point, toInterior: Bool) -> S1ChordAngle {
     // All calculations are done in the (u,v,w) coordinates of this cell's face.
     let target = S2Cube.faceXYZtoUVW(face: Int(face), point: targetXYZ)
     // Compute dot products with all four upward or rightward-facing edge
@@ -447,7 +447,7 @@ public struct Cell: S2Region {
     }
     if inside {
       if toInterior {
-        return ChordAngle.zero
+        return S1ChordAngle.zero
       }
       // Although you might think of Cells as rectangles, they are actually
       // arbitrary quadrilaterals after they are projected onto the sphere.
@@ -467,17 +467,17 @@ public struct Cell: S2Region {
                          vertexChordDist2(p: target, xHi: true, yHi: false),
                          vertexChordDist2(p: target, xHi: false, yHi: true),
                          vertexChordDist2(p: target, xHi: true, yHi: true))
-    return ChordAngle(squaredLength: chordDist2)
+    return S1ChordAngle(squaredLength: chordDist2)
   }
   
   // Distance reports the distance from the cell to the given point. Returns zero if
   // the point is inside the cell.
-  func distance(target: S2Point) -> ChordAngle {
+  func distance(target: S2Point) -> S1ChordAngle {
     return distanceInternal(targetXYZ: target, toInterior: true)
   }
   
   // BoundaryDistance reports the distance from the cell boundary to the given point.
-  func boundaryDistance(target: S2Point) -> ChordAngle {
+  func boundaryDistance(target: S2Point) -> S1ChordAngle {
     return distanceInternal(targetXYZ: target, toInterior: false)
   }
   
@@ -487,7 +487,7 @@ extension Cell {
   
   // DistanceToEdge returns the minimum distance from the cell to the given edge AB. Returns
   // zero if the edge intersects the cell interior.
-  func distanceToEdge(a: S2Point, b: S2Point) -> ChordAngle {
+  func distanceToEdge(a: S2Point, b: S2Point) -> S1ChordAngle {
     // Possible optimizations:
     //  - Currently the (cell vertex, edge endpoint) distances are computed
     //    twice each, and the length of AB is computed 4 times.

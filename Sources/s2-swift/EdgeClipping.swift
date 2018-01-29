@@ -459,12 +459,12 @@ struct FaceSegment {
 // TODO(roberts): Extend the implementation of PointCross so that this is true.
 func faceSegments(a: S2Point, b: S2Point) -> [FaceSegment] {
   // Fast path: both endpoints are on the same face.
-  let (aFace1, ax, ay) = S2Cube.xyzToFaceUV(r: a)
-  let (bFace1, bx, by) = S2Cube.xyzToFaceUV(r: b)
-  let sa1 = R2Point(x: ax, y: ay)
-  let sb1 = R2Point(x: bx, y: by)
-  if aFace1 == bFace1 {
-    let segment = FaceSegment(face: aFace1, a: sa1, b: sb1)
+  let aFaceUV = S2Cube(point: a)
+  let bFaceUV = S2Cube(point: b)
+  let sa1 = R2Point(x: aFaceUV.u, y: aFaceUV.v)
+  let sb1 = R2Point(x: bFaceUV.u, y: bFaceUV.v)
+  if aFaceUV.face == bFaceUV.face {
+    let segment = FaceSegment(face: aFaceUV.face, a: sa1, b: sb1)
     return [segment]
   }
   // Starting at A, we follow AB from face to face until we reach the face
@@ -478,8 +478,8 @@ func faceSegments(a: S2Point, b: S2Point) -> [FaceSegment] {
   // the original endpoints. We handle this by moving A and/or B slightly if
   // necessary so that they are on faces intersected by the line AB.
   let ab = a.pointCross(b)
-  let (aFace2, sa2) = moveOriginToValidFace(face: aFace1, a: a, ab: ab, aUV: sa1)
-  let (bFace2, sb2) = moveOriginToValidFace(face: bFace1, a: b, ab: S2Point(raw: ab.mul(-1)), aUV: sb1)
+  let (aFace2, sa2) = moveOriginToValidFace(face: aFaceUV.face, a: a, ab: ab, aUV: sa1)
+  let (bFace2, sb2) = moveOriginToValidFace(face: bFaceUV.face, a: b, ab: S2Point(raw: ab.mul(-1)), aUV: sb1)
   // Now we simply follow AB from face to face until we reach B.
   var segments: [FaceSegment] = []
   var sFace = aFace2

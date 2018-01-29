@@ -60,27 +60,9 @@ public struct S2Point {
     (self.x, self.y, self.z) = S2Point.normalize(x: x, y: y, z: z)
   }
   
-  init(latLng: LatLng) {
-    let phi = latLng.lat
-    let theta = latLng.lng
-    let cosphi = cos(phi)
-    self.init(x: cos(theta) * cosphi, y: sin(theta) * cosphi, z: sin(phi))
-  }
-
-  // PointFromCoords creates a new normalized point from coordinates.
-  //
-  // This always returns a valid point. If the given coordinates can not be normalized
-  // the origin point will be returned.
-  //
-  // This behavior is different from the C++ construction of a S2Point from coordinates
-  // (i.e. S2Point(x, y, z)) in that in C++ they do not Normalize.
-//  static func pointFromCoords(x: Double, y: Double, z: Double) -> S2Point {
-//    if x == 0.0 && y == 0.0 && z == 0.0 {
-//      return origin
-//    }
-//    return S2Point(x: x, y: y, z: z).normalized()
-//  }
-//  
+  /// Creates a new normalized point from coordinates.
+  /// This always returns a valid point. If the given coordinates can not be normalized
+  /// the origin point will be returned.
   init(raw: R3Vector) {
     self.init(x: raw.x, y: raw.y, z: raw.z)
   }
@@ -96,19 +78,19 @@ public struct S2Point {
     return (x / norm, y / norm, z / norm)
   }
   
-  // OriginPoint returns a unique "origin" on the sphere for operations that need a fixed
-  // reference point. In particular, this is the "point at infinity" used for
-  // point-in-polygon testing (by counting the number of edge crossings).
-  //
-  // It should *not* be a point that is commonly used in edge tests in order
-  // to avoid triggering code to handle degenerate cases (this rules out the
-  // north and south poles). It should also not be on the boundary of any
-  // low-level S2Cell for the same reason.
+  /// A unique "origin" on the sphere for operations that need a fixed
+  /// reference point. In particular, this is the "point at infinity" used for
+  /// point-in-polygon testing (by counting the number of edge crossings).
+  ///
+  /// It should *not* be a point that is commonly used in edge tests in order
+  /// to avoid triggering code to handle degenerate cases (this rules out the
+  /// north and south poles). It should also not be on the boundary of any
+  /// low-level S2Cell for the same reason.
   static let origin = S2Point(x: 0, y: 0, z: 0)
   
   // MARK: tests
   
-  // IsUnit returns whether this S2Point is of approximately unit length.
+  /// Returns whether this S2Point is of approximately unit length.
   var isUnit: Bool {
     return abs(v.norm2 - 1.0) <= S2Point.epsilon
   }
@@ -119,17 +101,17 @@ public struct S2Point {
     return R3Vector(x: x, y: y, z:z)
   }
   
-  // Norm returns the S2Point's norm.
+  /// Returns the S2Point's norm.
   var norm: Double {
     return sqrt(dot(self))
   }
   
-  // Norm2 returns the square of the norm.
+  /// Returns the square of the norm.
   var norm2: Double {
     return dot(self)
   }
   
-  // Normalize returns a unit S2Point in the same direction as
+  /// Returns a unit S2Point in the same direction as
   func normalized() -> R3Vector {
     if x == 0.0 && y == 0.0 && z == 0.0 {
       return mul(1.0) //self
@@ -137,7 +119,7 @@ public struct S2Point {
     return mul(1.0 / norm)
   }
   
-  // Abs returns the S2Point with nonnegative components.
+  /// Returns the S2Point with nonnegative components.
   func absolute() -> S2Point {
     return S2Point(x: abs(x), y: abs(y), z: abs(z))
   }
@@ -152,8 +134,8 @@ public struct S2Point {
     return 2
   }
 
-  // Ortho returns a unit S2Point that is orthogonal to
-  // Ortho(-v) = -Ortho(v) for all
+  /// Returns a unit S2Point that is orthogonal to
+  /// Ortho(-v) = -Ortho(v) for all
   func ortho() -> R3Vector {
     // Grow a component other than the largest in v, to guarantee that they aren't
     // parallel (which would make the cross product zero).
@@ -175,7 +157,7 @@ public struct S2Point {
     return S2Point(x: -x, y: -y, z: -z)
   }
   
-  // Add returns the standard S2Point difference of v and other.
+  /// Returns the standard S2Point difference of v and other.
   func add(_ point: S2Point) -> R3Vector {
     return R3Vector(x: x + point.x, y: y + point.y, z: z + point.z)
   }
@@ -184,7 +166,7 @@ public struct S2Point {
     return R3Vector(x: lhs.x + rhs.x, y: lhs.y + rhs.y, z: lhs.z + rhs.z)
   }
   
-  // Sub returns the standard S2Point difference of v and other.
+  /// Returns the standard S2Point difference of v and other.
   func sub(_ point: S2Point) -> R3Vector {
     return R3Vector(x: x - point.x, y: y - point.y, z: z - point.z)
   }
@@ -193,7 +175,7 @@ public struct S2Point {
     return R3Vector(x: lhs.x - rhs.x, y: lhs.y - rhs.y, z: lhs.z - rhs.z)
   }
   
-  // Mul returns the standard scalar product of v and m.
+  /// Returns the standard scalar product of v and m.
   func mul(_ m: Double) -> R3Vector {
     return R3Vector(x: m * x, y: m * y, z: m * z)
   }
@@ -202,7 +184,7 @@ public struct S2Point {
     return R3Vector(x: lhs.x * rhs, y: lhs.y * rhs, z: lhs.z * rhs)
   }
   
-  // Dot returns the standard dot product of v and other.
+  /// Returns the standard dot product of v and other.
   func dot(_ point: S2Point) -> Double {
     return x * point.x + y * point.y + z * point.z
   }
@@ -211,22 +193,22 @@ public struct S2Point {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
   }
   
-  // Cross returns the standard cross product of v and other.
+  /// Returns the standard cross product of v and other.
   func cross(_ point: S2Point) -> R3Vector {
     return R3Vector(x: y * point.z - z * point.y, y: z * point.x - x * point.z, z: x * point.y - y * point.x)
   }
   
-  // EuclideanDistance returns the Euclidean distance between v and other.
+  /// Returns the Euclidean distance between v and other.
   func euclideanDistance(_ point: S2Point) -> Double {
     return v.sub(point.v).norm
   }
 
-  // Distance returns the angle between two points.
+  /// Returns the angle between two points.
   func distance(_ b: S2Point) -> Double {
     return angle(b)
   }
   
-  // Angle returns the angle between v and other.
+  /// Returns the angle between v and other.
   func angle(_ point: S2Point) -> Double {
     return atan2(v.cross(point.v).norm, v.dot(point.v))
   }
@@ -270,18 +252,18 @@ public struct S2Point {
     return S2Point(raw: v)
   }
   
-  // PointCross returns a Point that is orthogonal to both p and op. This is similar to
-  // p.Cross(op) (the true cross product) except that it does a better job of
-  // ensuring orthogonality when the Point is nearly parallel to op, it returns
-  // a non-zero result even when p == op or p == -op and the result is a Point,
-  // so it will have norm 1.
-  //
-  // It satisfies the following properties (f == PointCross):
-  //
-  //   (1) f(p, op) != 0 for all p, op
-  //   (2) f(op,p) == -f(p,op) unless p == op or p == -op
-  //   (3) f(-p,op) == -f(p,op) unless p == op or p == -op
-  //   (4) f(p,-op) == -f(p,op) unless p == op or p == -op
+  /// Returns a Point that is orthogonal to both p and op. This is similar to
+  /// p.Cross(op) (the true cross product) except that it does a better job of
+  /// ensuring orthogonality when the Point is nearly parallel to op, it returns
+  /// a non-zero result even when p == op or p == -op and the result is a Point,
+  /// so it will have norm 1.
+  ///
+  /// It satisfies the following properties (f == PointCross):
+  ///
+  ///   (1) f(p, op) != 0 for all p, op
+  ///   (2) f(op,p) == -f(p,op) unless p == op or p == -op
+  ///   (3) f(-p,op) == -f(p,op) unless p == op or p == -op
+  ///   (4) f(p,-op) == -f(p,op) unless p == op or p == -op
   func pointCross(_ op: S2Point) -> S2Point {
     // NOTE(dnadasi): In the C++ API the equivalent method here was known as "RobustCrossProd",
     // but PointCross more accurately describes how this method is used.
@@ -294,18 +276,17 @@ public struct S2Point {
     return S2Point(raw: x)
   }
 
-  // Sign returns true if the points A, B, C are strictly counterclockwise,
-  // and returns false if the points are clockwise or collinear (i.e. if they are all
-  // contained on some great circle).
-  //
-  // Due to numerical errors, situations may arise that are mathematically
-  // impossible, e.g. ABC may be considered strictly CCW while BCA is not.
-  // However, the implementation guarantees the following:
-  //
-  //   If Sign(a,b,c), then !Sign(c,b,a) for all a,b,c.
+  /// Returns true if the points A, B, C are strictly counterclockwise,
+  /// and returns false if the points are clockwise or collinear (i.e. if they are all
+  /// contained on some great circle).
+  ///
+  /// Due to numerical errors, situations may arise that are mathematically
+  /// impossible, e.g. ABC may be considered strictly CCW while BCA is not.
+  /// However, the implementation guarantees the following:
+  ///
+  ///   If Sign(a,b,c), then !Sign(c,b,a) for all a,b,c.
   static func sign(_ a: S2Point, b: S2Point, c: S2Point) -> Bool {
     // NOTE(dnadasi): In the C++ API the equivalent method here was known as "SimpleSign".
-    
     // We compute the signed volume of the parallelepiped ABC. The usual
     // formula for this is (A ⨯ B) · C, but we compute it here using (C ⨯ A) · B
     // in order to ensure that ABC and CBA are not both CCW. This follows
@@ -317,30 +298,30 @@ public struct S2Point {
     return c.v.cross(a.v).dot(b.v) > 0
   }
 
-  // RobustSign returns a Direction representing the ordering of the points.
-  // CounterClockwise is returned if the points are in counter-clockwise order,
-  // Clockwise for clockwise, and Indeterminate if any two points are the same (collinear),
-  // or the sign could not completely be determined.
-  //
-  // This function has additional logic to make sure that the above properties hold even
-  // when the three points are coplanar, and to deal with the limitations of
-  // floating-point arithmetic.
-  //
-  // RobustSign satisfies the following conditions:
-  //
-  //  (1) RobustSign(a,b,c) == Indeterminate if and only if a == b, b == c, or c == a
-  //  (2) RobustSign(b,c,a) == RobustSign(a,b,c) for all a,b,c
-  //  (3) RobustSign(c,b,a) == -RobustSign(a,b,c) for all a,b,c
-  //
-  // In other words:
-  //
-  //  (1) The result is Indeterminate if and only if two points are the same.
-  //  (2) Rotating the order of the arguments does not affect the result.
-  //  (3) Exchanging any two arguments inverts the result.
-  //
-  // On the other hand, note that it is not true in general that
-  // RobustSign(-a,b,c) == -RobustSign(a,b,c), or any similar identities
-  // involving antipodal points.
+  /// Returns a Direction representing the ordering of the points.
+  /// CounterClockwise is returned if the points are in counter-clockwise order,
+  /// Clockwise for clockwise, and Indeterminate if any two points are the same (collinear),
+  /// or the sign could not completely be determined.
+  ///
+  /// This function has additional logic to make sure that the above properties hold even
+  /// when the three points are coplanar, and to deal with the limitations of
+  /// floating-point arithmetic.
+  ///
+  /// RobustSign satisfies the following conditions:
+  ///
+  ///  (1) RobustSign(a,b,c) == Indeterminate if and only if a == b, b == c, or c == a
+  ///  (2) RobustSign(b,c,a) == RobustSign(a,b,c) for all a,b,c
+  ///  (3) RobustSign(c,b,a) == -RobustSign(a,b,c) for all a,b,c
+  ///
+  /// In other words:
+  ///
+  ///  (1) The result is Indeterminate if and only if two points are the same.
+  ///  (2) Rotating the order of the arguments does not affect the result.
+  ///  (3) Exchanging any two arguments inverts the result.
+  ///
+  /// On the other hand, note that it is not true in general that
+  /// RobustSign(-a,b,c) == -RobustSign(a,b,c), or any similar identities
+  /// involving antipodal points.
   static func robustSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     let sign = triageSign(a, b, c)
     if sign == .indeterminate {
@@ -349,12 +330,12 @@ public struct S2Point {
     return sign
   }
 
-  // triageSign returns the direction sign of the points. It returns Indeterminate if two
-  // points are identical or the result is uncertain. Uncertain cases can be resolved, if
-  // desired, by calling expensiveSign.
-  //
-  // The purpose of this method is to allow additional cheap tests to be done without
-  // calling expensiveSign.
+  /// Returns the direction sign of the points. It returns Indeterminate if two
+  /// points are identical or the result is uncertain. Uncertain cases can be resolved, if
+  /// desired, by calling expensiveSign.
+  ///
+  /// The purpose of this method is to allow additional cheap tests to be done without
+  /// calling expensiveSign.
   static func triageSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     let det = c.v.cross(a.v).dot(b.v)
     if det > maxDeterminantError {
@@ -366,9 +347,9 @@ public struct S2Point {
     return .indeterminate
   }
 
-  // expensiveSign reports the direction sign of the points. It returns Indeterminate
-  // if two of the input points are the same. It uses multiple-precision arithmetic
-  // to ensure that its results are always self-consistent.
+  /// Reports the direction sign of the points. It returns Indeterminate
+  /// if two of the input points are the same. It uses multiple-precision arithmetic
+  /// to ensure that its results are always self-consistent.
   static func expensiveSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     // Return Indeterminate if and only if two points are the same.
     // This ensures RobustSign(a,b,c) == Indeterminate if and only if a == b, b == c, or c == a.
@@ -390,19 +371,19 @@ public struct S2Point {
     return exactSign(a, b, c)
   }
 
-  // stableSign reports the direction sign of the points in a numerically stable way.
-  // Unlike triageSign, this method can usually compute the correct determinant sign even when all
-  // three points are as collinear as possible. For example if three points are
-  // spaced 1km apart along a random line on the Earth's surface using the
-  // nearest representable points, there is only a 0.4% chance that this method
-  // will not be able to find the determinant sign. The probability of failure
-  // decreases as the points get closer together; if the collinear points are
-  // 1 meter apart, the failure rate drops to 0.0004%.
-  //
-  // This method could be extended to also handle nearly-antipodal points (and
-  // in fact an earlier version of this code did exactly that), but antipodal
-  // points are rare in practice so it seems better to simply fall back to
-  // exact arithmetic in that case.
+  /// Reports the direction sign of the points in a numerically stable way.
+  /// Unlike triageSign, this method can usually compute the correct determinant sign even when all
+  /// three points are as collinear as possible. For example if three points are
+  /// spaced 1km apart along a random line on the Earth's surface using the
+  /// nearest representable points, there is only a 0.4% chance that this method
+  /// will not be able to find the determinant sign. The probability of failure
+  /// decreases as the points get closer together; if the collinear points are
+  /// 1 meter apart, the failure rate drops to 0.0004%.
+  ///
+  /// This method could be extended to also handle nearly-antipodal points (and
+  /// in fact an earlier version of this code did exactly that), but antipodal
+  /// points are rare in practice so it seems better to simply fall back to
+  /// exact arithmetic in that case.
   static func stableSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     let ab = a.v.sub(b.v)
     let ab2 = ab.norm2
@@ -446,7 +427,7 @@ public struct S2Point {
     return .indeterminate
   }
 
-  // exactSign reports the direction sign of the points using exact precision arithmetic.
+  /// Reports the direction sign of the points using exact precision arithmetic.
   static func exactSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     // In the C++ version, the final computation is performed using OpenSSL's
     // Bignum exact precision math library. The existence of an equivalent
@@ -457,19 +438,19 @@ public struct S2Point {
     return .indeterminate
   }
 
-  // OrderedCCW returns true if the edges OA, OB, and OC are encountered in that
-  // order while sweeping CCW around the point O.
-  //
-  // You can think of this as testing whether A <= B <= C with respect to the
-  // CCW ordering around O that starts at A, or equivalently, whether B is
-  // contained in the range of angles (inclusive) that starts at A and extends
-  // CCW to C. Properties:
-  //
-  //  (1) If OrderedCCW(a,b,c,o) && OrderedCCW(b,a,c,o), then a == b
-  //  (2) If OrderedCCW(a,b,c,o) && OrderedCCW(a,c,b,o), then b == c
-  //  (3) If OrderedCCW(a,b,c,o) && OrderedCCW(c,b,a,o), then a == b == c
-  //  (4) If a == b or b == c, then OrderedCCW(a,b,c,o) is true
-  //  (5) Otherwise if a == c, then OrderedCCW(a,b,c,o) is false
+  /// Returns true if the edges OA, OB, and OC are encountered in that
+  /// order while sweeping CCW around the point O.
+  ///
+  /// You can think of this as testing whether A <= B <= C with respect to the
+  /// CCW ordering around O that starts at A, or equivalently, whether B is
+  /// contained in the range of angles (inclusive) that starts at A and extends
+  /// CCW to C. Properties:
+  ///
+  ///  (1) If OrderedCCW(a,b,c,o) && OrderedCCW(b,a,c,o), then a == b
+  ///  (2) If OrderedCCW(a,b,c,o) && OrderedCCW(a,c,b,o), then b == c
+  ///  (3) If OrderedCCW(a,b,c,o) && OrderedCCW(c,b,a,o), then a == b == c
+  ///  (4) If a == b or b == c, then OrderedCCW(a,b,c,o) is true
+  ///  (5) Otherwise if a == c, then OrderedCCW(a,b,c,o) is false
   static func orderedCCW(_ a: S2Point, _ b: S2Point, _ c: S2Point, _ o: S2Point) -> Bool {
     var sum = 0
     if robustSign(b, o, a) != .clockwise {
@@ -488,38 +469,38 @@ public struct S2Point {
     return pointArea(a, b, c) * Double(robustSign(a, b, c).rawValue)
   }
   
-  // PointArea returns the area on the unit sphere for the triangle defined by the
-  // given points.
-  //
-  // This method is based on l'Huilier's theorem,
-  //
-  //   tan(E/4) = sqrt(tan(s/2) tan((s-a)/2) tan((s-b)/2) tan((s-c)/2))
-  //
-  // where E is the spherical excess of the triangle (i.e. its area),
-  //       a, b, c are the side lengths, and
-  //       s is the semiperimeter (a + b + c) / 2.
-  //
-  // The only significant source of error using l'Huilier's method is the
-  // cancellation error of the terms (s-a), (s-b), (s-c). This leads to a
-  // *relative* error of about 1e-16 * s / min(s-a, s-b, s-c). This compares
-  // to a relative error of about 1e-15 / E using Girard's formula, where E is
-  // the true area of the triangle. Girard's formula can be even worse than
-  // this for very small triangles, e.g. a triangle with a true area of 1e-30
-  // might evaluate to 1e-5.
-  //
-  // So, we prefer l'Huilier's formula unless dmin < s * (0.1 * E), where
-  // dmin = min(s-a, s-b, s-c). This basically includes all triangles
-  // except for extremely long and skinny ones.
-  //
-  // Since we don't know E, we would like a conservative upper bound on
-  // the triangle area in terms of s and dmin. It's possible to show that
-  // E <= k1 * s * sqrt(s * dmin), where k1 = 2*sqrt(3)/Pi (about 1).
-  // Using this, it's easy to show that we should always use l'Huilier's
-  // method if dmin >= k2 * s^5, where k2 is about 1e-2. Furthermore,
-  // if dmin < k2 * s^5, the triangle area is at most k3 * s^4, where
-  // k3 is about 0.1. Since the best case error using Girard's formula
-  // is about 1e-15, this means that we shouldn't even consider it unless
-  // s >= 3e-4 or so.
+  /// Returns the area on the unit sphere for the triangle defined by the
+  /// given points.
+  ///
+  /// This method is based on l'Huilier's theorem,
+  ///
+  ///   tan(E/4) = sqrt(tan(s/2) tan((s-a)/2) tan((s-b)/2) tan((s-c)/2))
+  ///
+  /// where E is the spherical excess of the triangle (i.e. its area),
+  ///       a, b, c are the side lengths, and
+  ///       s is the semiperimeter (a + b + c) / 2.
+  ///
+  /// The only significant source of error using l'Huilier's method is the
+  /// cancellation error of the terms (s-a), (s-b), (s-c). This leads to a
+  /// *relative* error of about 1e-16 * s / min(s-a, s-b, s-c). This compares
+  /// to a relative error of about 1e-15 / E using Girard's formula, where E is
+  /// the true area of the triangle. Girard's formula can be even worse than
+  /// this for very small triangles, e.g. a triangle with a true area of 1e-30
+  /// might evaluate to 1e-5.
+  ///
+  /// So, we prefer l'Huilier's formula unless dmin < s * (0.1 * E), where
+  /// dmin = min(s-a, s-b, s-c). This basically includes all triangles
+  /// except for extremely long and skinny ones.
+  ///
+  /// Since we don't know E, we would like a conservative upper bound on
+  /// the triangle area in terms of s and dmin. It's possible to show that
+  /// E <= k1 * s * sqrt(s * dmin), where k1 = 2*sqrt(3)/Pi (about 1).
+  /// Using this, it's easy to show that we should always use l'Huilier's
+  /// method if dmin >= k2 * s^5, where k2 is about 1e-2. Furthermore,
+  /// if dmin < k2 * s^5, the triangle area is at most k3 * s^4, where
+  /// k3 is about 0.1. Since the best case error using Girard's formula
+  /// is about 1e-15, this means that we shouldn't even consider it unless
+  /// s >= 3e-4 or so.
   static func pointArea(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> Double {
     let sa = b.angle(c)
     let sb = c.angle(a)
@@ -618,20 +599,20 @@ public struct S2Point {
 
   /// Constructs a ChordAngle corresponding to the distance
   /// between the two given points. The points must be unit length.
-  func chordAngleBetweenPoints(x: S2Point, y: S2Point) -> ChordAngle {
-    return ChordAngle(value: min(4.0, (x - y).norm2))
+  func chordAngleBetweenPoints(x: S2Point, y: S2Point) -> S1ChordAngle {
+    return S1ChordAngle(value: min(4.0, (x - y).norm2))
   }
   
-  // regularPoints generates a slice of points shaped as a regular polygon with
-  // the numVertices vertices, all located on a circle of the specified angular radius
-  // around the center. The radius is the actual distance from center to each vertex.
+  /// Generates a slice of points shaped as a regular polygon with
+  /// the numVertices vertices, all located on a circle of the specified angular radius
+  /// around the center. The radius is the actual distance from center to each vertex.
   static func regularPoints(center: S2Point, radius: S1Angle, numVertices: Int) -> [S2Point] {
     return S2Point.regularPointsForFrame(frame: S2Point.getFrame(center), radius: radius, numVertices: numVertices)
   }
   
-  // regularPointsForFrame generates a slice of points shaped as a regular polygon
-  // with numVertices vertices, all on a circle of the specified angular radius around
-  // the center. The radius is the actual distance from the center to each vertex.
+  /// Generates a slice of points shaped as a regular polygon
+  /// with numVertices vertices, all on a circle of the specified angular radius around
+  /// the center. The radius is the actual distance from the center to each vertex.
   static func regularPointsForFrame(frame: R3Matrix, radius: S1Angle, numVertices: Int) -> [S2Point] {
     // We construct the loop in the given frame coordinates, with the center at
     // (0, 0, 1). For a loop of radius r, the loop vertices have the form
@@ -734,23 +715,3 @@ extension S2Point: Equatable, CustomStringConvertible, Approximatable, Hashable,
   
 }
 
-/// A Shape representing a set of Points. Each point
-/// is represented as a degenerate point with the same starting and ending
-/// vertices.
-/// This type is useful for adding a collection of points to an ShapeIndex.
-struct S2PointVector {
-  let points: [S2Point]
-}
-
-extension S2PointVector: Shape {
-  func numEdges() -> Int { return points.count }
-  func edge(_ i: Int) -> Edge { return Edge(v0: points[i], v1: points[i]) }
-  func hasInterior() -> Bool { return false }
-  func containsOrigin() -> Bool { return false }
-  func referencePoint() -> ReferencePoint { return ReferencePoint(origin: true, contained: false) }
-  func numChains() -> Int { return points.count }
-  func chain(_ i: Int) -> Chain { return Chain(start: i, length: 1) }
-  func chainEdge(chainId i: Int, offset j: Int) -> Edge { return Edge(v0: points[i], v1: points[j]) }
-  func chainPosition(_ e: Int) -> ChainPosition { return ChainPosition(chainId: e, offset: 0) }
-  func dimension() -> ShapeDimension { return .pointGeometry }
-}

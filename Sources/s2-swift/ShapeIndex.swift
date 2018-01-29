@@ -532,7 +532,7 @@ enum StateIndex {
 /// Now you can use a CrossingEdgeQuery or ClosestEdgeQuery here.
 public class ShapeIndex {
   // shapes is a map of shape ID to shape.
-  var shapes: [Int32: Shape]
+  var shapes: [Int32: S2Shape]
   // The maximum number of edges per cell.
   // TODO(roberts): Update the comments when the usage of this is implemented.
   let maxEdgesPerCell: Int
@@ -628,12 +628,12 @@ extension ShapeIndex {
   }
   
   /// Returns the shape with the given ID, or nil if the shape has been removed from the index.
-  func shape(id: Int32) -> Shape? {
+  func shape(id: Int32) -> S2Shape? {
     return shapes[id]
   }
   
   /// Adds the given shape to the index and returns the assigned ID..
-  func add(shape: Shape) {
+  func add(shape: S2Shape) {
     shapes[nextId] = shape
     nextId += 1
     status = .stale

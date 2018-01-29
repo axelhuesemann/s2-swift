@@ -50,12 +50,19 @@ struct S2Cube {
     self.init(face: face, u: u, v: v)
   }
 
+  // MARK: conversion
+  
+  /// Turns face and UV coordinates into an unnormalized 3 R3Vector.
+  func vector() -> R3Vector {
+    return S2Cube.faceUVToXYZ(face: face, u: u, v: v)
+  }
+  
   // MARK: non-linear projection
   
-  // stToUV converts an s or t value to the corresponding u or v value.
-  // This is a non-linear transformation from [-1,1] to [-1,1] that
-  // attempts to make the cell sizes more uniform.
-  // This uses what the C++ version calls 'the quadratic transform'.
+  /// Converts an s or t value to the corresponding u or v value.
+  /// This is a non-linear transformation from [-1,1] to [-1,1] that
+  /// attempts to make the cell sizes more uniform.
+  /// This uses what the C++ version calls 'the quadratic transform'.
   static func stToUV(_ s: Double) -> Double {
     if s >= 0.5 {
       return (1.0 / 3.0) * (4 * s * s - 1)
@@ -63,9 +70,9 @@ struct S2Cube {
     return (1.0 / 3.0) * (1 - 4 * (1 - s) * (1 - s))
   }
   
-  // uvToST is the inverse of the stToUV transformation. Note that it
-  // is not always true that uvToST(stToUV(x)) == x due to numerical
-  // errors.
+  /// The inverse of the stToUV transformation. Note that it
+  /// is not always true that uvToST(stToUV(x)) == x due to numerical
+  /// errors.
   static func uvToST(_ u: Double) -> Double {
     if u >= 0 {
       return 0.5 * sqrt(1 + 3 * u)
@@ -75,8 +82,8 @@ struct S2Cube {
   
   // MARK: face
   
-  // face returns face ID from 0 to 5 containing the r. For points on the
-  // boundary between faces, the result is arbitrary but deterministic.
+  /// Returns face ID from 0 to 5 containing the r. For points on the
+  /// boundary between faces, the result is arbitrary but deterministic.
   static func face(point r: S2Point) -> Int {
     // find largest component
     var id = 0
@@ -97,9 +104,9 @@ struct S2Cube {
     return id
   }
   
-  // validFaceXYZToUV given a valid face for the given point r (meaning that
-  // dot product of r with the face normal is positive), returns
-  // the corresponding u and v values, which may lie outside the range [-1,1].
+  /// Given a valid face for the given point r (meaning that
+  /// dot product of r with the face normal is positive), returns
+  /// the corresponding u and v values, which may lie outside the range [-1,1].
   static func validFaceXYZToUV(face: Int, point r: S2Point) -> (Double, Double) {
     switch face {
     case 0: return (r.y / r.x, r.z / r.x)
@@ -111,16 +118,8 @@ struct S2Cube {
     }
   }
   
-  // xyzToFaceUV converts a direction S2Point (not necessarily unit length) to
-  // (face, u, v) coordinates.
-  static func xyzToFaceUV(r: S2Point) -> (Int, Double, Double) {
-    let f = face(point: r)
-    let (u, v) = validFaceXYZToUV(face: f, point: r)
-    return (f, u, v)
-  }
-  
-  // faceXYZToUV returns the u and v values (which may lie outside the range
-  // [-1, 1]) if the dot product of the point p with the given face normal is positive.
+  /// Returns the u and v values (which may lie outside the range
+  /// [-1, 1]) if the dot product of the point p with the given face normal is positive.
   static func faceXYZToUV(face: Int, p: S2Point) -> (Double, Double)? {
     let toCheck: Double
     switch face {
@@ -138,23 +137,11 @@ struct S2Cube {
     return validFaceXYZToUV(face: face, point: p)
   }
 
-  // faceUVToXYZ turns face and UV coordinates into an unnormalized 3 R3Vector.
-  func vector() -> R3Vector {
-    switch face {
-    case 0: return R3Vector(x: 1, y: u, z: v)
-    case 1: return R3Vector(x: -u, y: 1, z: v )
-    case 2: return R3Vector(x: -u, y: -v, z: 1)
-    case 3: return R3Vector(x: -1, y: -v, z: -u)
-    case 4: return R3Vector(x: v, y: -1, z: -u)
-    default: return R3Vector(x: v, y: u, z: -1)
-    }
-  }
-  
-  // faceUVToXYZ turns face and UV coordinates into an unnormalized 3 R3Vector.
+  // Turns face and UV coordinates into an unnormalized 3 R3Vector.
   static func faceUVToXYZ(face: Int, u: Double, v: Double) -> R3Vector {
     switch face {
     case 0: return R3Vector(x: 1, y: u, z: v)
-    case 1: return R3Vector(x: -u, y: 1, z: v )
+    case 1: return R3Vector(x: -u, y: 1, z: v)
     case 2: return R3Vector(x: -u, y: -v, z: 1)
     case 3: return R3Vector(x: -1, y: -v, z: -u)
     case 4: return R3Vector(x: v, y: -1, z: -u)
@@ -177,27 +164,6 @@ struct S2Cube {
     }
   }
 
-  // MARK: move this somewhere else? has more to do with cells
-  
-  // faceSiTiToXYZ transforms the (si, ti) coordinates to a (not necessarily
-  // unit length) Point on the given face.
-  static func faceSiTiToXYZ(face: Int, si: UInt32, ti: UInt32) -> S2Point {
-    let r3 = faceUVToXYZ(face: face, u: stToUV(siTiToST(si: si)), v: stToUV(siTiToST(si: ti)))
-    return S2Point(raw: r3)
-  }
-  
-  static let maxSiTi = CellId.maxSize << 1
-  
-  // siTiToST converts an si- or ti-value to the corresponding s- or t-value.
-  // Value is capped at 1.0 because there is no DCHECK in Go.
-  static func siTiToST(si: UInt32) -> Double {
-    if si > maxSiTi {
-      return 1.0
-    }
-    return Double(si) / Double(maxSiTi)
-  }
-
-  
   // MARK: u and v normals
   
   // uNorm returns the right-handed normal (not necessarily unit length) for an
