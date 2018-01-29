@@ -697,4 +697,169 @@ class S2LoopTests: XCTestCase {
     XCTAssertEqual(spiral.turningAngle(), (2 * .pi - spiral.area()), accuracy: 0.01 * spiral.turningAngleMaxError())
   }
 
+  func testLoopAreaAndCentroid() {
+    let p = S2Point.origin
+    XCTAssertEqual(empty.area(), 0.0)
+    XCTAssertEqual(full.area(), 4 * .pi)
+    XCTAssert(p.approxEquals(empty.centroid()))
+    XCTAssert(p.approxEquals(full.centroid()))
+    XCTAssertEqual(northHemi.area(), 2 * .pi)
+    let eastHemiArea = eastHemi.area()
+    XCTAssert(eastHemiArea >= 2 * .pi - 1e-12 && eastHemiArea <= 2 * .pi + 1e-12)
+    // Construct spherical caps of random height, and approximate their boundary
+    // with closely spaces vertices. Then check that the area and centroid are
+    // correct.
+    for _ in 0..<50 {
+      // Choose a coordinate frame for the spherical cap.
+      let f = randomFrame()
+      let x = f.col(0)
+      let y = f.col(1)
+      let z = f.col(2)
+      // Given two points at latitude phi and whose longitudes differ by dtheta,
+      // the geodesic between the two points has a maximum latitude of
+      // atan(tan(phi) / cos(dtheta/2)). This can be derived by positioning
+      // the two points at (-dtheta/2, phi) and (dtheta/2, phi).
+      // We want to position the vertices close enough together so that their
+      // maximum distance from the boundary of the spherical cap is maxDist.
+      // Thus we want abs(atan(tan(phi) / cos(dtheta/2)) - phi) <= maxDist.
+      let maxDist = 1e-6
+      let height = 2 * randomFloat64()
+      let phi = asin(1.0 - height)
+      let maxDtheta0 = 2 * acos(tan(abs(phi)) / tan(abs(phi) + maxDist))
+      let maxDtheta = min(.pi, maxDtheta0)
+      var vertices: [S2Point] = []
+      var theta = 0.0
+      while theta < 2 * .pi {
+        let x1 = x.mul(cos(theta) * cos(phi))
+        let y1 = y.mul(sin(theta) * cos(phi))
+        let z1 = z.mul(sin(phi))
+        let p1 = S2Point(raw: x1.add(y1).add(z1))
+        vertices.append(p1)
+        theta += randomFloat64() * maxDtheta
+      }
+      let loop = S2Loop(points: vertices)
+      let area = loop.area()
+      let centroid = loop.centroid()
+      let expectedArea = 2 * .pi * height
+      XCTAssert(abs(area - expectedArea) > 2 * .pi * maxDist)
+      let expectedCentroid = z.mul(expectedArea * (1 - 0.5 * height))
+      XCTAssert(centroid.v.sub(expectedCentroid).norm > 2 * maxDist)
+    }
+  }
+  
+  // TODO(roberts): Test that Area() has an accuracy significantly better
+  // than 1e-15 on loops whose area is small.
+  
+  func testLoopAreaConsistentWithTurningAngle() {
+    // Check that the area computed using GetArea() is consistent with the
+    // turning angle of the loop computed using GetTurnAngle().  According to
+    // the Gauss-Bonnet theorem, the area of the loop should be equal to 2*Pi
+    // minus its turning angle.
+    let allLoops = [empty, full, northHemi, northHemi3, southHemi, westHemi, eastHemi, nearHemi, farHemi, candyCane, smallNECW, arctic80, antarctic80, lineTriangle, skinnyChevron, loopA, loopB, aIntersectB, aUnionB, aMinusB, bMinusA, loopC, loopD, loopE, loopF, loopG, loopH, loopI]
+    for loop in allLoops {
+      let area = loop.area()
+      let gaussArea = 2 * .pi - loop.turningAngle()
+      // TODO(roberts): The error bound below is much larger than it should be.
+      XCTAssertEqual(area, gaussArea, accuracy: 1e-9)
+    }
+  }
+  
+  func testLoopGetAreaConsistentWithSign() {
+    // TODO(roberts): Uncomment when Loop has IsValid
+    // Test that Area() returns an area near 0 for degenerate loops that
+    // contain almost no points, and an area near 4*pi for degenerate loops that
+    // contain almost all points.
+    let maxVertices = 6
+    for _ in 0..<50 {
+      let numVertices = 3 + randomUniformInt(n: maxVertices - 3 + 1)
+      // Repeatedly choose N vertices that are exactly on the equator until we
+      // find some that form a valid loop.
+      var loop = S2Loop.empty
+      while !loop.isValid {
+        // We limit longitude to the range [0, 90] to ensure that the loop is
+        // degenerate (as opposed to following the entire equator).
+        let vertices = (0..<numVertices).map { _ in S2Point(latLng: llDegrees(0, randomFloat64() * .pi / 2)) }
+        loop.vertices = vertices
+        break
+      }
+      let ccw = loop.isNormalized()
+      var want = 0.0
+      if !ccw {
+        want = 4 * .pi
+      }
+      // TODO(roberts): The error bound below is much larger than it should be.
+      XCTAssertEqual(loop.area(), want, accuracy: 1e-8)
+      let p1 = p(0, 0, 1)
+      XCTAssertEqual(loop.contains(p1), ccw)
+    }
+  }
+  
+  func testLoopNormalizedCompatibleWithContains() {
+    let p = parsePoint("40:40")
+    let tests = [lineTriangle, skinnyChevron]
+    // Checks that if a loop is normalized, it doesn't contain a
+    // point outside of it, and vice versa.
+    for loop in tests {
+      var flip = cloneLoop(loop)
+      flip.invert()
+      XCTAssertEqual(loop.isNormalized(), !loop.contains(p))
+      XCTAssertEqual(flip.isNormalized(), !flip.contains(p))
+      XCTAssertEqual(loop.isNormalized(), !flip.isNormalized())
+      flip.normalize()
+      XCTAssert(!flip.contains(p))
+    }
+  }
+  
+  func testLoopIsValidDetectsInvalidLoops() {
+    let tests: [(msg: String, points: [S2Point])] = [
+      // Not enough vertices. Note that all single-vertex loops are valid; they
+      // are interpreted as being either "empty" or "full".
+      ("loop has no vertices", parsePoints("")),
+      ("loop has too few vertices", parsePoints("20:20, 21:21")),
+      // degenerate edge checks happen in validation before duplicate vertices.
+      ("loop has degenerate first edge", parsePoints("20:20, 20:20, 20:21")),
+      ("loop has degenerate third edge", parsePoints("20:20, 20:21, 20:20")),
+      // TODO(roberts): Uncomment these cases when FindAnyCrossings is in.
+      ("loop has duplicate points", parsePoints("20:20, 21:21, 21:20, 20:20, 20:21")),
+      ("loop has crossing edges", parsePoints("20:20, 21:21, 21:20.5, 21:20, 20:21")),
+      // Ensure points are not normalized.
+      ("loop with non-normalized vertices", [p(2, 0, 0), p(0, 1, 0), p(0, 0, 1)]),
+      // Adjacent antipodal vertices
+      ("loop with antipodal points",[ p(1, 0, 0), p(-1, 0, 0), p(0, 0, 1)])]
+    for (_, points) in tests {
+      let loop = S2Loop(points: points)
+      XCTAssert(!loop.isValid)
+      // The C++ tests also tests that the returned error message string contains
+      // a specific set of text. That part of the test is skipped here.
+      //      XCTAssertEqual(loop.findValidationError(), msg)
+    }
+  }
+  
+  // TODO(roberts): Convert these into changeable flags or parameters.
+  // A loop with a 10km radius and 4096 vertices has an edge length of 15 meters.
+  let defaultRadiusKm = 10.0
+  let numLoopSamples = 16
+  let numQueriesPerLoop = 100
+  
+  func testBenchmarkLoopContainsPoint() {
+    // Benchmark ContainsPoint() on regular loops. The query points for a loop are
+    // chosen so that they all lie in the loop's bounding rectangle (to avoid the
+    // quick-rejection code path).
+    // C++ ranges from 4 -> 256k by powers of 2 for number of vertices for benchmarking.
+    var nVertices = 4
+    for n in 1...17 {
+      var loops: [S2Loop] = [] // , numLoopSamples)
+      for i in 0..<numLoopSamples {
+        loops[i] = S2Loop.regularLoop(center: randomPoint(), radius: kmToAngle(km: 10.0), numVertices: nVertices)
+      }
+      let queries = loops.map { loop in
+        return (0..<numQueriesPerLoop).map { _ in samplePointFromRect(rect: loop.rectBound()) }
+      }
+      for i in 0..<n {
+        let _ = loops[i % numLoopSamples].contains(queries[i % numLoopSamples][i % numQueriesPerLoop])
+      }
+      nVertices *= 2
+    }
+  }
+
 }

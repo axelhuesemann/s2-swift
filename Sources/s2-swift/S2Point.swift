@@ -707,7 +707,7 @@ extension S2Point: Equatable, CustomStringConvertible, Approximatable, Hashable,
 /// vertices.
 /// This type is useful for adding a collection of points to an ShapeIndex.
 struct S2PointVector {
-  var points: [S2Point]
+  let points: [S2Point]
 }
 
 extension S2PointVector: Shape {
