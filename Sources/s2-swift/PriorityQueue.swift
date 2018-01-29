@@ -3,13 +3,15 @@
 //  s2-swift
 //
 
-// This code was inspired by Section 2.4 of Algorithms by Sedgewick & Wayne, 4th Edition
-
+/// A generic priority queue.
+/// This code was inspired by Section 2.4 of Algorithms by Sedgewick & Wayne, 4th Edition
 public struct PriorityQueue<T: Comparable> {
   
   fileprivate var heap = [T]()
   private let ordered: (T, T) -> Bool
   
+  /// Initialize with optiuoal starting values. 
+  /// You can choose the order to create min and max queues.
   public init(ascending: Bool = false, startingValues: [T] = []) {
     if ascending {
       ordered = { $0 > $1 }
@@ -25,13 +27,13 @@ public struct PriorityQueue<T: Comparable> {
   
   public var isEmpty: Bool { return heap.isEmpty }
   
-  // insert new element into queue O(lg n)
+  /// Insert new element into queue O(lg n)
   public mutating func push(_ element: T) {
     heap.append(element)
     swim(heap.count - 1)
   }
   
-  // remove and return the element with the highest priority (or lowest if ascending) O(lg n)
+  /// Remove and return the element with the highest priority (or lowest if ascending) O(lg n)
   public mutating func pop() -> T? {
     if heap.isEmpty { return nil }
     if heap.count == 1 { return heap.removeFirst() }
@@ -41,12 +43,12 @@ public struct PriorityQueue<T: Comparable> {
     return temp
   }
   
-  // like pop() without removing it. O(1)
+  /// Like pop() without removing it. O(1)
   public func peek() -> T? {
     return heap.first
   }
   
-  // remove all elements
+  /// Remove all elements
   public mutating func clear() {
     heap.removeAll(keepingCapacity: false)
   }
@@ -96,7 +98,7 @@ extension PriorityQueue: Collection {
   public var startIndex: Int { return heap.startIndex }
   public var endIndex: Int { return heap.endIndex }
   public subscript(i: Int) -> T { return heap[i] }
-  public func index(after: Int) -> Int { return after+1 }
+  public func index(after: Int) -> Int { return after + 1 }
 }
 
 // MARK: CustomStringConvertible, CustomDebugStringConvertible
