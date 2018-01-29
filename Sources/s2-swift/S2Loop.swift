@@ -23,7 +23,7 @@ import Foundation
 /// preserve the invariant that every loop can be represented as a vertex
 /// chain, they are defined as having exactly one vertex each (see EmptyLoop
 /// and FullLoop).
-public struct S2Loop: Shape, S2RegionType {
+public struct S2Loop: Shape, S2Region {
   
   var vertices: [S2Point]
   
@@ -841,12 +841,12 @@ public struct S2Loop: Shape, S2RegionType {
   /// Creates a loop with the given number of vertices, all
   /// located on a circle of the specified radius around the given center.
   static func regularLoop(center: S2Point, radius: S1Angle, numVertices: Int) -> S2Loop {
-    return S2Loop.regularLoopForFrame(frame: Matrix.getFrame(center), radius: radius, numVertices: numVertices)
+    return S2Loop.regularLoopForFrame(frame: S2Point.getFrame(center), radius: radius, numVertices: numVertices)
   }
   
   /// Creates a loop centered around the z-axis of the given
   /// coordinate frame, with the first vertex in the direction of the positive x-axis.
-  static func regularLoopForFrame(frame: Matrix, radius: S1Angle, numVertices: Int) -> S2Loop {
+  static func regularLoopForFrame(frame: R3Matrix, radius: S1Angle, numVertices: Int) -> S2Loop {
     return S2Loop(points: S2Point.regularPointsForFrame(frame: frame, radius: radius, numVertices: numVertices))
   }
 

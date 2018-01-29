@@ -83,14 +83,14 @@ public struct RegionCoverer {
   // MARK: region to cell union
   
   // Covering returns a CellUnion that covers the given region and satisfies the various restrictions.
-  func covering(region: S2RegionType) -> CellUnion {
+  func covering(region: S2Region) -> CellUnion {
     var covering = cellUnion(region: region)
     covering.denormalize(minLevel: max(0, min(maxLevel, minLevel)), levelMod: max(1, min(3, levelMod)))
     return covering
   }
   
   // InteriorCovering returns a CellUnion that is contained within the given region and satisfies the various restrictions.
-  func interiorCovering(region: S2RegionType) -> CellUnion {
+  func interiorCovering(region: S2Region) -> CellUnion {
     var covering = interiorCellUnion(region: region)
     covering.denormalize(minLevel: max(0, min(maxLevel, minLevel)), levelMod: max(1, min(3, levelMod)))
     return covering
@@ -102,7 +102,7 @@ public struct RegionCoverer {
   // automatically normalized by replacing four child cells with their parent
   // whenever possible. (Note that the list of cell ids passed to the CellUnion
   // constructor does in fact satisfy all the given restrictions.)
-  func cellUnion(region: S2RegionType) -> CellUnion {
+  func cellUnion(region: S2Region) -> CellUnion {
     let coverer = newCoverer()
     coverer.coveringInternal(region: region)
     var union = coverer.result
@@ -116,7 +116,7 @@ public struct RegionCoverer {
   // automatically normalized by replacing four child cells with their parent
   // whenever possible. (Note that the list of cell ids passed to the CellUnion
   // constructor does in fact satisfy all the given restrictions.)
-  func interiorCellUnion(region: S2RegionType) -> CellUnion {
+  func interiorCellUnion(region: S2Region) -> CellUnion {
     let coverer = newCoverer()
     coverer.interiorCovering = true
     coverer.coveringInternal(region: region)
@@ -191,7 +191,7 @@ class Coverer  {
   
   // MARK: working variables
   
-  var region: S2RegionType?
+  var region: S2Region?
   var result: CellUnion
   var pq: PriorityQueue<Candidate>
   var interiorCovering: Bool
@@ -366,7 +366,7 @@ class Coverer  {
   // first), then by the number of intersecting children they have (fewest
   // children first), and then by the number of fully contained children
   // (fewest children first).
-  func coveringInternal(region: S2RegionType) {
+  func coveringInternal(region: S2Region) {
     self.region = region
     initialCandidates()
     while pq.count > 0 && (!interiorCovering || result.count < maxCells) {

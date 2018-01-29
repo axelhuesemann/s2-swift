@@ -68,7 +68,7 @@ extension ReferencePoint {
 
 }
 
-/// Shape represents polygonal geometry in a flexible way. It is organized as a
+/// Represents polygonal geometry in a flexible way. It is organized as a
 /// collection of edges that optionally defines an interior. All geometry
 /// represented by a given Shape must have the same dimension, which means that
 /// an Shape can represent either a set of points, a set of polylines, or a set

@@ -186,19 +186,19 @@ extension R2Rect {
     return R2Rect(x: xx, y: yy)
   }
 
-  // ExpandedByMargin returns a R2Rect that has been expanded by the amount on all sides.
+  /// Returns a R2Rect that has been expanded by the amount on all sides.
   func expanded(_ margin: Double) -> R2Rect {
     return expanded(R2Point(x: margin, y: margin))
   }
 
-  // Union returns the smallest rectangle containing the union of this rectangle and
-  // the given rectangle.
+  /// Returns the smallest rectangle containing the union of this rectangle and
+  /// the given rectangle.
   func union(_ rect: R2Rect) -> R2Rect {
     return R2Rect(x: x.union(rect.x), y: y.union(rect.y))
   }
 
-  // Intersection returns the smallest rectangle containing the intersection of this
-  // rectangle and the given rectangle.
+  /// Returns the smallest rectangle containing the intersection of this
+  /// rectangle and the given rectangle.
   func intersection(_ rect: R2Rect) -> R2Rect {
     let xx = x.intersection(rect.x)
     let yy = y.intersection(rect.y)
@@ -221,8 +221,8 @@ extension R2Rect: Equatable, CustomStringConvertible, Approximatable {
 //    return "[\(lo), \(hi)]"
   }
   
-  // ApproxEquals returns true if the x- and y-intervals of the two rectangles are
-  // the same up to the given tolerance.
+  /// Returns true if the x- and y-intervals of the two rectangles are
+  /// the same up to the given tolerance.
   public func approxEquals(_ rect: R2Rect) -> Bool {
     return x.approxEquals(rect.x) && y.approxEquals(rect.y)
   }

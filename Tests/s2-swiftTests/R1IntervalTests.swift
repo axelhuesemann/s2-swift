@@ -96,7 +96,6 @@ class R1IntervalTests: XCTestCase {
   }
   
   func testApproxEqual() {
-    let epsilon = R1Interval.epsilon
     // empty intervals
     XCTAssertTrue(empty.approxEquals(empty))
     XCTAssertTrue(zero.approxEquals(empty))
@@ -114,12 +113,12 @@ class R1IntervalTests: XCTestCase {
     XCTAssertTrue(i(1, 1).approxEquals(i(1 - epsilon, 1 + epsilon)))
     XCTAssertFalse(zero.approxEquals(i(1, 1)))
     // other intervals
-    XCTAssertFalse(i(1 - epsilon, 2 + epsilon).approxEquals(i(1, 2)))
-    XCTAssertTrue(i(1 + epsilon, 2 - epsilon).approxEquals(i(1, 2)))
-    XCTAssertFalse(i(1 - 3*epsilon, 2 + epsilon).approxEquals(i(1, 2)))
-    XCTAssertFalse(i(1 + 3*epsilon, 2 - epsilon).approxEquals(i(1, 2)))
-    XCTAssertFalse(i(1 - epsilon, 2 + 3*epsilon).approxEquals(i(1, 2)))
-    XCTAssertFalse(i(1 + epsilon, 2 - 3*epsilon).approxEquals(i(1, 2)))
+    XCTAssertFalse(i(1 - R1Interval.epsilon, 2 + epsilon).approxEquals(i(1, 2)))
+    XCTAssertTrue(i(1 + R1Interval.epsilon, 2 - epsilon).approxEquals(i(1, 2)))
+    XCTAssertFalse(i(1 - 3 * R1Interval.epsilon, 2 + R1Interval.epsilon).approxEquals(i(1, 2)))
+    XCTAssertFalse(i(1 + 3 * R1Interval.epsilon, 2 - R1Interval.epsilon).approxEquals(i(1, 2)))
+    XCTAssertFalse(i(1 - R1Interval.epsilon, 2 + 3 * R1Interval.epsilon).approxEquals(i(1, 2)))
+    XCTAssertFalse(i(1 + R1Interval.epsilon, 2 - 3 * R1Interval.epsilon).approxEquals(i(1, 2)))
   }
 
 }

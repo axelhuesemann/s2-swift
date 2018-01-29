@@ -294,7 +294,7 @@ public struct S1Interval: IntervalType {
       }
       // Check whether this interval will be full after expansion, allowing
       // for a 1-bit rounding error when computing each endpoint.
-      if length + 2 * margin + 2 * S1Interval.epsilon >= 2.0 * .pi {
+      if .pi - length * 0.5 - margin <= S1Interval.epsilon {
         return S1Interval.full
       }
     } else {
@@ -303,12 +303,13 @@ public struct S1Interval: IntervalType {
       }
       // Check whether this interval will be empty after expansion, allowing
       // for a 1-bit rounding error when computing each endpoint.
-      if length + 2 * margin - 2 * S1Interval.epsilon <= 0 {
+      if length * 0.5 + margin <= S1Interval.epsilon  {
         return S1Interval.empty
       }
     }
-    let l = (lo - margin).truncatingRemainder(dividingBy: 2.0 * .pi)
-    let h = (hi + margin).truncatingRemainder(dividingBy: 2.0 * .pi)
+    // normalizing
+    let l = (lo - margin).truncatingRemainder(dividingBy: 2 * .pi)
+    let h = (hi + margin).truncatingRemainder(dividingBy: 2 * .pi)
     if l <= -.pi {
       return S1Interval(p0: .pi, p1: h)
     }
@@ -317,7 +318,7 @@ public struct S1Interval: IntervalType {
 
 }
 
-extension S1Interval: Equatable, CustomStringConvertible {
+extension S1Interval: Equatable, CustomStringConvertible, Approximatable {
   
   public static func ==(lhs: S1Interval, rhs: S1Interval) -> Bool {
     return lhs.lo == rhs.lo && lhs.hi == rhs.hi
@@ -327,6 +328,22 @@ extension S1Interval: Equatable, CustomStringConvertible {
     let l = String(format: "%.7f", lo * toDegrees)
     let h = String(format: "%.7f", hi * toDegrees)
     return "[\(l), \(h)]"
+  }
+  
+  /// Reports whether the interval can be transformed into the
+  /// given interval by moving each endpoint a small distance.
+  /// The empty interval is considered to be positioned arbitrarily,
+  /// so any interval with a small enough length will match
+  /// the empty interval.
+  /// This assumes the intervals to be normalized (-pi...pi)
+  public func approxEquals(_ other: S1Interval) -> Bool {
+    if isEmpty {
+      return other.length <= 2 * S1Interval.epsilon
+    }
+    if other.isEmpty {
+      return length <= 2 * S1Interval.epsilon
+    }
+    return abs(other.lo - lo) <= S1Interval.epsilon && abs(other.hi - hi) <= S1Interval.epsilon
   }
   
 }

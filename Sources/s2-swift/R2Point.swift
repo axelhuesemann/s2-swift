@@ -67,7 +67,7 @@ extension R2Point: Equatable, CustomStringConvertible, Approximatable {
   /// Returns true if the x and y of the two points are
   /// the same up to the given tolerance.
   public func approxEquals(_ point: R2Point) -> Bool {
-    return x.approxEquals(point.x) && y.approxEquals(point.y)
+    return abs(x - point.x) <= R1Interval.epsilon && abs(y - point.y) <= R1Interval.epsilon
   }
   
 }

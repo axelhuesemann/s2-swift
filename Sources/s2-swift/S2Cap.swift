@@ -28,7 +28,7 @@ import Foundation
 /// "full" caps, which contain no points and all points respectively.
 ///
 /// The zero value of Cap is an invalid cap. Use EmptyCap to get a valid empty cap.
-public struct S2Cap: S2RegionType {
+public struct S2Cap: S2Region {
   
   // MARK: constants
   

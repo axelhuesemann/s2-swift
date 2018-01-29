@@ -45,7 +45,7 @@ struct EdgeCrosser {
   let bTangent: S2Point // Outward-facing tangent at B.
   // The fields below are updated for each vertex in the chain.
   var c: S2Point?     // Previous vertex in the vertex chain.
-  var acb: Direction? // The orientation of triangle ACB.
+  var acb: S2Direction? // The orientation of triangle ACB.
 
   // Contructs an EdgeCrosser with the fixed edge AB.
   init(a: S2Point, b: S2Point) {
@@ -152,7 +152,7 @@ struct EdgeCrosser {
   }
   
   /// Handles the slow path of CrossingSign.
-  mutating func crossingSign(d: S2Point, bda: Direction) -> Crossing {
+  mutating func crossingSign(d: S2Point, bda: S2Direction) -> Crossing {
     guard let c = c else { return .maybeCross }
     // Compute the actual result, and then save the current vertex D as the next
     // vertex C, and save the orientation of the next triangle ACB (which is

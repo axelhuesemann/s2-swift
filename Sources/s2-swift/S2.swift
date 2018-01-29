@@ -9,18 +9,6 @@ public protocol Approximatable {
   func approxEquals(_ other: Self) -> Bool
 }
 
-extension Double: Approximatable {
-  
-  public func approxEquals(_ other: Double) -> Bool {
-    return abs(self - other) <= 1e-15
-  }
-  
-  public func approxEquals(_ other: Double, _ epsilon: Double) -> Bool {
-    return abs(self - other) <= epsilon
-  }
-  
-}
-
 public protocol IntervalType {
   associatedtype Member
   associatedtype Distance
@@ -53,7 +41,7 @@ public protocol IntervalType {
 /// The purpose of this interface is to allow complex regions to be
 /// approximated as simpler regions. The interface is restricted to methods
 /// that are useful for computing approximations.
-public protocol S2RegionType  {
+public protocol S2Region {
   /// Returns a bounding spherical cap. This is not guaranteed to be exact.
   func capBound() -> S2Cap
   /// Returns a bounding latitude-longitude rectangle that contains
@@ -69,14 +57,14 @@ public protocol S2RegionType  {
 }
 
 /// Ordering of a set of points
-public enum Direction: Int {
+public enum S2Direction: Int {
   case clockwise = -1
   case indeterminate = 0
   case counterClockwise = 1
 }
 
-extension Direction {
-  static prefix func -(d: Direction) -> Direction {
+extension S2Direction {
+  static prefix func -(d: S2Direction) -> S2Direction {
     switch d {
     case .clockwise: return .counterClockwise
     case .indeterminate: return .indeterminate
@@ -85,8 +73,8 @@ extension Direction {
   }
 }
 
-/// Returns number closest to x within the range min..max.
-func clamp(_ x: Int, min: Int, max: Int) -> Int {
+/// Returns element closest to x within the range min..max.
+func clamp<T: Comparable>(_ x: T, min: T, max: T) -> T {
   if x < min {
     return min
   }

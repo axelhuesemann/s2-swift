@@ -9,7 +9,7 @@ import Foundation
 // Cell is an S2 region object that represents a cell. Unlike CellIDs,
 // it supports efficient containment and intersection tests. However, it is
 // also a more expensive representation.
-public struct Cell: S2RegionType {
+public struct Cell: S2Region {
   
   // TODO: move these package private variables to a more appropriate location.
   static let dblEpsilon = nextafter(1.0, 2.0) - 1.0

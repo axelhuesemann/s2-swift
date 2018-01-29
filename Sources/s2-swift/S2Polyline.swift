@@ -9,7 +9,7 @@ import Foundation
 // Polyline represents a sequence of zero or more vertices connected by
 // straight edges (geodesics). Edges of length 0 and 180 degrees are not
 // allowed, i.e. adjacent vertices should not be identical or antipodal.
-public struct S2Polyline: Shape, S2RegionType {
+public struct S2Polyline: Shape, S2Region {
  
   private let points: [S2Point]
   
@@ -217,7 +217,7 @@ public struct S2Polyline: Shape, S2RegionType {
     // represent it as an Interval, i.e. an interval on the unit
     // circle.
     let origin = points[index]
-    let frame = Matrix.getFrame(origin)
+    let frame = S2Point.getFrame(origin)
     // As we go along, we keep track of the current wedge of angles
     // and the distance to the last vertex (which must be
     // non-decreasing).
@@ -253,7 +253,7 @@ public struct S2Polyline: Shape, S2RegionType {
       // last vertex that was contained within the wedge (since we
       // don't create new vertices). This would be more complicated
       // and also make the worst-case running time more than linear.
-      let direction = Matrix.toFrame(frame, point: candidate)
+      let direction = S2Point.toFrame(frame, point: candidate)
       let center = atan2(direction.y, direction.x)
       if !currentWedge.contains(center) {
         break

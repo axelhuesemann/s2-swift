@@ -28,7 +28,7 @@ class RegionCovererTests: XCTestCase {
       while !id.isValid {
         id = CellId(id: randomUInt64())
       }
-      let region = Cell(id: id) as S2RegionType
+      let region = Cell(id: id) as S2Region
       let covering = rc.covering(region: region)
       XCTAssertEqual(covering.count, 1)
       XCTAssertEqual(covering[0], id, "\(covering[0]) \(id)")
@@ -103,7 +103,7 @@ class RegionCovererTests: XCTestCase {
     return RegionCoverer(minLevel: minLevel, maxLevel: maxLevel, levelMod: levelMod, maxCells: maxCells)
   }
   
-  func checkCovering(rc: RegionCoverer, r: S2RegionType) {
+  func checkCovering(rc: RegionCoverer, r: S2Region) {
     // exterior cover
     var covering = rc.covering(region: r)
     checkCovering(rc: rc, r: r, covering: covering, interior: false)
@@ -121,7 +121,7 @@ class RegionCovererTests: XCTestCase {
   }
   
   // checkCovering reports whether covering is a valid cover for the region.
-  func checkCovering(rc: RegionCoverer, r: S2RegionType, covering: CellUnion, interior: Bool) {
+  func checkCovering(rc: RegionCoverer, r: S2Region, covering: CellUnion, interior: Bool) {
     // Keep track of how many cells have the same rc.MinLevel ancestor.
     var minLevelCells = [CellId: Int]()
     var tempCover = CellUnion(ids: [])
@@ -156,7 +156,7 @@ class RegionCovererTests: XCTestCase {
   // checkCoveringTight checks that "cover" completely covers the given region.
   // If "checkTight" is true, also checks that it does not contain any cells that
   // do not intersect the given region. ("id" is only used internally.)
-  func checkCoveringTight(r: S2RegionType, cover: CellUnion, checkTight: Bool, id: CellId, rc: RegionCoverer) {
+  func checkCoveringTight(r: S2Region, cover: CellUnion, checkTight: Bool, id: CellId, rc: RegionCoverer) {
     if !id.isValid {
       for f in 0..<6 {
         checkCoveringTight(r: r, cover: cover, checkTight: checkTight, id: CellId(face: f), rc: rc)

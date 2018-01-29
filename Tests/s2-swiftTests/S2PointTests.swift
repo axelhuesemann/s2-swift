@@ -117,7 +117,7 @@ class S2PointTests: XCTestCase {
     let tests = [
       // Simple collinear points test cases.
       // a == b != c
-      (x, x, z, Direction.indeterminate),
+      (x, x, z, S2Direction.indeterminate),
       // a != b == c
       (x, y, y, .indeterminate),
       // c == a != b
@@ -161,7 +161,7 @@ class S2PointTests: XCTestCase {
       let rotated = S2Point.robustSign(p2, p3, p1)
       XCTAssertEqual(rotated, result)
       // Test RobustSign(c,b,a) == -RobustSign(a,b,c) for all a,b,c
-      var want = Direction.clockwise
+      var want = S2Direction.clockwise
       if result == .clockwise {
         want = .counterClockwise
       } else if result == .indeterminate {

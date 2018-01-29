@@ -71,7 +71,6 @@ class S2CapTests: XCTestCase {
   }
   
   func testCapContains() {
-    let epsilon = 1e-14
     XCTAssertTrue(empty.contains(empty))
     XCTAssertTrue(full.contains(empty))
     XCTAssertTrue(full.contains(full))
@@ -81,8 +80,8 @@ class S2CapTests: XCTestCase {
     XCTAssertTrue(xAxis.contains(xAxis))
     XCTAssertTrue(xAxis.contains(empty))
     XCTAssertTrue(hemi.contains(tiny))
-    XCTAssertTrue(hemi.contains(S2Cap(center: xAxisPt, angle: .pi / 4 - epsilon)))
-    XCTAssertFalse(hemi.contains(S2Cap(center: xAxisPt, angle: .pi / 4 + epsilon)))
+    XCTAssertTrue(hemi.contains(S2Cap(center: xAxisPt, angle: .pi / 4 - S2Cap.epsilon)))
+    XCTAssertFalse(hemi.contains(S2Cap(center: xAxisPt, angle: .pi / 4 + S2Cap.epsilon)))
     XCTAssertTrue(concave.contains(hemi))
     XCTAssertFalse(concave.contains(S2Cap(center: concave.center.inverse(), height: 0.1)))
   }
@@ -92,7 +91,6 @@ class S2CapTests: XCTestCase {
     // math optimizations that are permissible (FMA vs no FMA) that yield
     // slightly different floating point results between gccgo and gc.
     let tangent = tiny.center.v.cross(S2Point(x: 3, y: 2, z: 1).v)
-    let epsilon = 1e-14
     XCTAssertTrue(xAxis.contains(xAxisPt))
     XCTAssertFalse(xAxis.contains(S2Point(x: 1, y: 1e-20, z: 0)))
     XCTAssertFalse(yAxis.contains(xAxis.center))
@@ -103,12 +101,12 @@ class S2CapTests: XCTestCase {
     XCTAssertTrue(hemi.contains(S2Point(x: 1, y: 0, z: -(1 - epsilon))))
     XCTAssertTrue(hemi.contains(xAxisPt))
     XCTAssertFalse(hemi.complement().contains(xAxisPt))
-    XCTAssertTrue(concave.contains(llDegrees(-70*(1-epsilon), 10).toPoint()))
-    XCTAssertFalse(concave.contains(llDegrees(-70*(1+epsilon), 10).toPoint()))
+    XCTAssertTrue(concave.contains(llDegrees(-70 * (1 - S2Cap.epsilon), 10).toPoint()))
+    XCTAssertFalse(concave.contains(llDegrees(-70 * (1 + S2Cap.epsilon), 10).toPoint()))
     // This test case is the one where the floating point values end up
     // different in the 15th place and beyond.
-    XCTAssertTrue(concave.contains(llDegrees(-50*(1-epsilon), -170).toPoint()))
-    XCTAssertFalse(concave.contains(llDegrees(-50*(1+epsilon), -170).toPoint()))
+    XCTAssertTrue(concave.contains(llDegrees(-50 * (1 - S2Cap.epsilon), -170).toPoint()))
+    XCTAssertFalse(concave.contains(llDegrees(-50 * (1 + S2Cap.epsilon), -170).toPoint()))
   }
   
   func testCapInteriorIntersects() {
@@ -128,8 +126,7 @@ class S2CapTests: XCTestCase {
   }
   
   func testCapInteriorContains() {
-    let epsilon = 1e-14
-    XCTAssertFalse(hemi.interiorContains(S2Point(x: 1, y: 0, z: -(1 + epsilon).normalized())))
+    XCTAssertFalse(hemi.interiorContains(S2Point(x: 1, y: 0, z: -(1 + S2Cap.epsilon).normalized())))
   }
   
   func testCapExpanded() {

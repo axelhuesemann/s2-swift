@@ -1,5 +1,5 @@
 //
-//  S2Matrix.swift
+//  R3Matrix.swift
 //  s2-swift
 //
 
@@ -9,7 +9,7 @@ import Foundation
 /// Represents a traditional 3x3 matrix of floating point values.
 /// This is not a full fledged matrix. It only contains the pieces needed
 /// to satisfy the computations done within the s2 package.
-public struct Matrix {
+public struct R3Matrix {
   
   let rows = 3
   let columns = 3
@@ -56,8 +56,8 @@ public struct Matrix {
   }
 
   /// Multiplies the matrix by the given value.
-  func scale(scalar f: Double) -> Matrix {
-    return Matrix(
+  func scale(scalar f: Double) -> R3Matrix {
+    return R3Matrix(
       r1: [f * self[0, 0], f * self[0, 1], f * self[0, 2]],
       r2: [f * self[1, 0], f * self[1, 1], f * self[1, 2]],
       r3: [f * self[2, 0], f * self[2, 1], f * self[2, 2]])
@@ -87,48 +87,16 @@ public struct Matrix {
   }
 
   /// Reflects the matrix along its diagonal and returns the result.
-  func transpose() -> Matrix {
-    return Matrix(
+  func transpose() -> R3Matrix {
+    return R3Matrix(
       r1: [self[0, 0], self[1, 0], self[2, 0]],
       r2: [self[0, 1], self[1, 1], self[2, 1]],
       r3: [self[0, 2], self[1, 2], self[2, 2]])
   }
 
-  // MARK: frames
-  
-  /// Returns the orthonormal frame for the given point on the unit sphere.
-  static func getFrame(_ point: S2Point) -> Matrix {
-    // Given the point p on the unit sphere, extend this into a right-handed
-    // coordinate frame of unit-length column vectors m = (x,y,z).  Note that
-    // the vectors (x,y) are an orthonormal frame for the tangent space at point p,
-    // while p itself is an orthonormal frame for the normal space at p.
-    let o = point.v.ortho()
-    let p1 = S2Point(raw: o.cross(point.v))
-    let p2 = S2Point(raw: o)
-    let p3 = point
-    return Matrix(
-      r1: [p1.x, p2.x, p3.x],
-      r2: [p1.y, p2.y, p3.y],
-      r3: [p1.z, p2.z, p3.z])
-  }
-
-  /// Returns the coordinates of the given point with respect to its orthonormal basis m.
-  /// The resulting point q satisfies the identity (m * q == p).
-  static func toFrame(_ matrix: Matrix, point: S2Point) -> S2Point {
-    // The inverse of an orthonormal matrix is its transpose.
-    return matrix.transpose().mul(point: point)
-  }
-
-  /// Returns the coordinates of the given point in standard axis-aligned basis
-  /// from its orthonormal basis m.
-  /// The resulting point p satisfies the identity (p == m * q).
-  static func fromFrame(_ matrix: Matrix, point: S2Point) -> S2Point {
-    return matrix.mul(point: point)
-  }
-
 }
 
-extension Matrix: CustomStringConvertible {
+extension R3Matrix: CustomStringConvertible {
 
   public var description: String {
     return String(format: "[ %0.4f %0.4f %0.4f ] [ %0.4f %0.4f %0.4f ] [ %0.4f %0.4f %0.4f ]",

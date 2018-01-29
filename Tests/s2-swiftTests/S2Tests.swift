@@ -100,18 +100,18 @@ func randomPoint() -> S2Point {
 
 // randomFrame returns a right-handed coordinate frame (three orthonormal vectors) for
 // a randomly generated point.
-func randomFrame() -> Matrix {
+func randomFrame() -> R3Matrix {
 	return randomFrameAtPoint(z: randomPoint())
 }
 
 // randomFrameAtPoint returns a right-handed coordinate frame using the given
 // point as the z-axis. The x- and y-axes are computed such that (x,y,z) is a
 // right-handed coordinate frame (three orthonormal vectors).
-func randomFrameAtPoint(z: S2Point) -> Matrix {
+func randomFrameAtPoint(z: S2Point) -> R3Matrix {
   let x = z.v.cross(randomPoint().v).s2
 	let y = z.v.cross(x.v).s2
   //
-  return Matrix(
+  return R3Matrix(
     r1: [x.x, y.x, z.x],
     r2: [x.y, y.y, z.y],
     r3: [x.z, y.z, z.z])
@@ -266,7 +266,7 @@ func rectsApproxEqual(a: S2Rect, b: S2Rect, tolLat: Double, tolLng: Double) -> B
 
 // matricesApproxEqual reports whether all cells in both matrices are equal within
 // the default floating point epsilon.
-func matricesApproxEqual(m1: Matrix, m2: Matrix) -> Bool {
+func matricesApproxEqual(m1: R3Matrix, m2: R3Matrix) -> Bool {
 	return float64Eq(m1[0, 0], m2[0, 0]) &&
 		float64Eq(m1[0, 1], m2[0, 1]) &&
 		float64Eq(m1[0, 2], m2[0, 2]) &&
@@ -299,7 +299,7 @@ func samplePointFromRect(rect: S2Rect) -> S2Point {
 func samplePointFromCap(c: S2Cap) -> S2Point {
 	// We consider the cap axis to be the "z" axis. We choose two other axes to
 	// complete the coordinate frame.
-	let m = Matrix.getFrame(c.center)
+	let m = S2Point.getFrame(c.center)
 
 	// The surface area of a spherical cap is directly proportional to its
 	// height. First we choose a random height, and then we choose a random
@@ -311,7 +311,7 @@ func samplePointFromCap(c: S2Cap) -> S2Point {
 	// The result should already be very close to unit-length, but we might as
 	// well make it accurate as possible.
   let p = S2Point(x: cos(theta) * r, y: sin(theta) * r, z: 1 - h)
-  return Matrix.fromFrame(m, point: p)
+  return R3Matrix.fromFrame(m, point: p)
 }
 
 // perturbATowardsB returns a point that has been shifted some distance towards the

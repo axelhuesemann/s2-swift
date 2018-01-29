@@ -12,7 +12,7 @@ import Foundation
 /// nor the four sibling CellIds that are children of a single higher level CellId.
 /// CellUnions are not required to be normalized, but certain operations will
 /// return different results if they are not (e.g. Contains).
-public struct CellUnion: S2RegionType {
+public struct CellUnion: S2Region {
 
   var cellIds: [CellId]
   

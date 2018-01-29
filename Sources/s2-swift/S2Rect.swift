@@ -7,7 +7,7 @@ import Foundation
 
 
 /// Represents a closed latitude-longitude rectangle.
-public struct S2Rect: S2RegionType {
+public struct S2Rect: S2Region {
 
   //
   static let validRectLatRange = R1Interval(lo: -.pi / 2, hi: .pi / 2)

@@ -14,8 +14,6 @@ public enum Axis {
 /// Represents a point in RxRxR.
 public struct R3Vector {
   
-  static let epsilon = 1e-14
-
   //
   let x: Double
   let y: Double
@@ -33,7 +31,7 @@ public struct R3Vector {
 
   /// Returns whether this vector is of approximately unit length.
   var isUnit: Bool {
-    return abs(norm2 - 1) <= R3Vector.epsilon
+    return abs(norm2 - 1) <= R1Interval.epsilon
   }
   
   // MARK: computed members
@@ -146,7 +144,7 @@ extension R3Vector: Equatable, CustomStringConvertible, Approximatable, Hashable
   
   /// Reports whether self and vector are equal within a small epsilon.
   public func approxEquals(_ vector: R3Vector) -> Bool {
-    return abs(x-vector.x) < R3Vector.epsilon && abs(y-vector.y) < R3Vector.epsilon && abs(z-vector.z) < R3Vector.epsilon
+    return abs(x - vector.x) < R1Interval.epsilon && abs(y - vector.y) < R1Interval.epsilon && abs(z - vector.z) < R1Interval.epsilon
   }
   
   public var hashValue: Int {

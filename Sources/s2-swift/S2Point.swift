@@ -341,7 +341,7 @@ public struct S2Point {
   // On the other hand, note that it is not true in general that
   // RobustSign(-a,b,c) == -RobustSign(a,b,c), or any similar identities
   // involving antipodal points.
-  static func robustSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> Direction {
+  static func robustSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     let sign = triageSign(a, b, c)
     if sign == .indeterminate {
       return expensiveSign(a, b, c)
@@ -355,7 +355,7 @@ public struct S2Point {
   //
   // The purpose of this method is to allow additional cheap tests to be done without
   // calling expensiveSign.
-  static func triageSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> Direction {
+  static func triageSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     let det = c.v.cross(a.v).dot(b.v)
     if det > maxDeterminantError {
       return .counterClockwise
@@ -369,7 +369,7 @@ public struct S2Point {
   // expensiveSign reports the direction sign of the points. It returns Indeterminate
   // if two of the input points are the same. It uses multiple-precision arithmetic
   // to ensure that its results are always self-consistent.
-  static func expensiveSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> Direction {
+  static func expensiveSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     // Return Indeterminate if and only if two points are the same.
     // This ensures RobustSign(a,b,c) == Indeterminate if and only if a == b, b == c, or c == a.
     // ie. Property 1 of RobustSign.
@@ -403,7 +403,7 @@ public struct S2Point {
   // in fact an earlier version of this code did exactly that), but antipodal
   // points are rare in practice so it seems better to simply fall back to
   // exact arithmetic in that case.
-  static func stableSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> Direction {
+  static func stableSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     let ab = a.v.sub(b.v)
     let ab2 = ab.norm2
     let bc = b.v.sub(c.v)
@@ -447,7 +447,7 @@ public struct S2Point {
   }
 
   // exactSign reports the direction sign of the points using exact precision arithmetic.
-  static func exactSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> Direction {
+  static func exactSign(_ a: S2Point, _ b: S2Point, _ c: S2Point) -> S2Direction {
     // In the C++ version, the final computation is performed using OpenSSL's
     // Bignum exact precision math library. The existence of an equivalent
     // library in Go is indeterminate. In C++, using the exact precision library
@@ -626,13 +626,13 @@ public struct S2Point {
   // the numVertices vertices, all located on a circle of the specified angular radius
   // around the center. The radius is the actual distance from center to each vertex.
   static func regularPoints(center: S2Point, radius: S1Angle, numVertices: Int) -> [S2Point] {
-    return S2Point.regularPointsForFrame(frame: Matrix.getFrame(center), radius: radius, numVertices: numVertices)
+    return S2Point.regularPointsForFrame(frame: S2Point.getFrame(center), radius: radius, numVertices: numVertices)
   }
   
   // regularPointsForFrame generates a slice of points shaped as a regular polygon
   // with numVertices vertices, all on a circle of the specified angular radius around
   // the center. The radius is the actual distance from the center to each vertex.
-  static func regularPointsForFrame(frame: Matrix, radius: S1Angle, numVertices: Int) -> [S2Point] {
+  static func regularPointsForFrame(frame: R3Matrix, radius: S1Angle, numVertices: Int) -> [S2Point] {
     // We construct the loop in the given frame coordinates, with the center at
     // (0, 0, 1). For a loop of radius r, the loop vertices have the form
     // (x, y, z) where x^2 + y^2 = sin(r) and z = cos(r). The distance on the
@@ -644,7 +644,7 @@ public struct S2Point {
     for i in 0..<numVertices {
       let angle = Double(i) * radianStep
       let p = S2Point(x: r * cos(angle), y: r * sin(angle), z: z)
-      vertices.append(Matrix.fromFrame(frame, point: p))
+      vertices.append(S2Point.fromFrame(frame, point: p))
     }
     return vertices
   }
@@ -664,6 +664,38 @@ public struct S2Point {
   /// LatLng representation
   var latLng: LatLng {
     return LatLng(lat: lat, lng: lng)
+  }
+  
+  // MARK: frames
+  
+  /// Returns the orthonormal frame for the given point on the unit sphere.
+  static func getFrame(_ point: S2Point) -> R3Matrix {
+    // Given the point p on the unit sphere, extend this into a right-handed
+    // coordinate frame of unit-length column vectors m = (x,y,z).  Note that
+    // the vectors (x,y) are an orthonormal frame for the tangent space at point p,
+    // while p itself is an orthonormal frame for the normal space at p.
+    let o = point.v.ortho()
+    let p1 = S2Point(raw: o.cross(point.v))
+    let p2 = S2Point(raw: o)
+    let p3 = point
+    return R3Matrix(
+      r1: [p1.x, p2.x, p3.x],
+      r2: [p1.y, p2.y, p3.y],
+      r3: [p1.z, p2.z, p3.z])
+  }
+  
+  /// Returns the coordinates of the given point with respect to its orthonormal basis m.
+  /// The resulting point q satisfies the identity (m * q == p).
+  static func toFrame(_ matrix: R3Matrix, point: S2Point) -> S2Point {
+    // The inverse of an orthonormal matrix is its transpose.
+    return matrix.transpose().mul(point: point)
+  }
+  
+  /// Returns the coordinates of the given point in standard axis-aligned basis
+  /// from its orthonormal basis m.
+  /// The resulting point p satisfies the identity (p == m * q).
+  static func fromFrame(_ matrix: R3Matrix, point: S2Point) -> S2Point {
+    return matrix.mul(point: point)
   }
   
 }
