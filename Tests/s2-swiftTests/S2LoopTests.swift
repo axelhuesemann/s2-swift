@@ -175,13 +175,13 @@ class S2LoopTests: XCTestCase {
   }
   
   func testLoopHoleAndSign() {
-    let l = makeLoop("0:-180, 0:-90, 0:0, 0:90")
+    var l = makeLoop("0:-180, 0:-90, 0:0, 0:90")
     XCTAssert(!l.isHole(), "loop with default depth should not be a hole")
     XCTAssertEqual(l.sign(), 1, "loop with default depth should have a sign of +1")
-//    l.depth = 3
+    l.depth = 3
     XCTAssert(l.isHole(), "loop with odd depth should be a hole")
     XCTAssertEqual(l.sign(), -1, "loop with odd depth should have a sign of -1")
-//    l.depth = 2
+    l.depth = 2
     XCTAssert(!l.isHole(), "loop with even depth should not be a hole")
     XCTAssertEqual(l.sign(), 1, "loop with even depth should have a sign of +1")
   }
@@ -349,10 +349,18 @@ class S2LoopTests: XCTestCase {
   }
   
   func testLoopFromCell() {
+    CellId.setup() // call this to initialize the lookup tables
     let cell = Cell(id: CellId(latLng: llDegrees(40.565459, -74.645276)))
     let loopFromCell = S2Loop(cell: cell)
     // Demonstrates the reason for this test; the cell bounds are more
     // conservative than the resulting loop bounds.
+    print(llDegrees(40.565459, -74.645276))
+    print(CellId(latLng: llDegrees(40.565459, -74.645276)).latLng())
+    print(cell)
+    print(cell.center().latLng)
+    print(loopFromCell.rectBound())
+    print(loopFromCell.rectBound().center)
+    print(cell.rectBound())
     XCTAssert(!loopFromCell.rectBound().contains(cell.rectBound()), "loopFromCell's RectBound countains the original cells RectBound, but should not")
   }
   
@@ -373,6 +381,7 @@ class S2LoopTests: XCTestCase {
   }
   
   func testLoopContainsMatchesCrossingSign() {
+    CellId.setup() // call this to initialize the lookup tables
     // This test demonstrates a former incompatibility between CrossingSign
     // and ContainsPoint. It constructs a Cell-based loop L and
     // an edge E from Origin to a0 that crosses exactly one edge of L.  Yet
@@ -383,12 +392,13 @@ class S2LoopTests: XCTestCase {
     // be inside the bound of L.
     // Start with a cell that ends up producing the problem.
     let cellId = CellId(point: S2Point(x: 1, y: 1, z: 1)).parent(21)
-    let children = Cell(id: cellId).children()
-    XCTAssertNotNil(children, "error subdividing cell")
+    guard let children = Cell(id: cellId).children() else {
+      return XCTFail("error subdividing cell")
+    }
     // Note extra normalization. Center() is already normalized.
     // The test results will no longer be inconsistent if the extra
     // Normalize() is removed.
-    let points = (0..<4).map { children![$0].center() }
+    let points = (0..<4).map { children[$0].center() }
     // Get a vertex from a grandchild cell.
     // +---------------+---------------+
     // |               |               |
@@ -408,9 +418,8 @@ class S2LoopTests: XCTestCase {
     // |               |               |
     // +---------------+---------------+
     let loop = S2Loop(points: points)
-    let grandchildren = children![0].children()
-    XCTAssertNotNil(grandchildren, "error subdividing cell")
-    let grandchildCell = grandchildren![2]
+    guard let grandchildren = children.first?.children() else { return XCTFail("error subdividing cell") }
+    let grandchildCell = grandchildren[2]
     let a0 = grandchildCell.vertex(0)
     // This test depends on rounding errors that should make a0 slightly different from points[0]
     XCTAssert(points[0] != a0, "not different enough to successfully test")
@@ -727,9 +736,11 @@ class S2LoopTests: XCTestCase {
       let area = loop.area()
       let centroid = loop.centroid()
       let expectedArea = 2 * .pi * height
-      XCTAssert(abs(area - expectedArea) > 2 * .pi * maxDist)
-      let expectedCentroid = z.mul(expectedArea * (1 - 0.5 * height))
-      XCTAssert(centroid.v.sub(expectedCentroid).norm > 2 * maxDist)
+      XCTAssert(abs(area - expectedArea) <= 2 * .pi * maxDist)
+      let expectedCentroid = S2Point(raw: z.mul(expectedArea * (1 - 0.5 * height)))
+      XCTAssert(centroid.sub(expectedCentroid).norm <= 2 * maxDist)
+//      XCTAssert(loop.contains(centroid))
+//      XCTAssert(loop.contains(expectedCentroid))
     }
   }
   

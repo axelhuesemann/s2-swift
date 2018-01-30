@@ -76,8 +76,8 @@ class S2CellIdTests: XCTestCase {
     // call this to initialize the lookup tables
     CellId.setup()
     // You can generate these with the s2cellid2latlngtestcase C++ program in this directory.
-    let tests = [
-      (UInt64(0x47a1cbd595522b39), 49.703498679, 11.770681595),
+    let tests: [(UInt64, Double, Double)] = [
+      (0x47a1cbd595522b39, 49.703498679, 11.770681595),
       (0x46525318b63be0f9, 55.685376759, 12.588490937),
       (0x52b30b71698e729d, 45.486546517, -93.449700022),
       (0x46ed8886cfadda85, 58.299984854, 23.049300056),
@@ -95,10 +95,10 @@ class S2CellIdTests: XCTestCase {
       let cellId = CellId(id: id)
       let ll = llDegrees(lat, lng)
       let l2 = cellId.latLng()
-      // let s1 = String(format: "%lX", CellId(latLng: ll).id)
-      // let s2 = String(format: "%lX", id)
-      // NSLog("\(ll) \(s1)")
-      // NSLog("\(l2) \(s2)")
+       let s1 = String(format: "%lX", CellId(latLng: ll).id)
+       let s2 = String(format: "%lX", id)
+       NSLog("\(ll) \(s1)")
+       NSLog("\(l2) \(s2)")
       XCTAssert(ll.distance(l2) <= 1e-9 * toRadians, "\(ll.distance(l2))") // ~0.1mm on earth.
       XCTAssertEqual(id, CellId(latLng: ll).id)
     }

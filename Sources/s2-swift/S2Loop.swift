@@ -1054,24 +1054,25 @@ public struct S2Loop: S2Shape, S2Region {
   /// see that method for commentary. The C++ version uses a templated method.
   /// Any changes to this method may need corresponding changes to surfaceIntegralFloat64 as well.
   func surfaceIntegral(f: (S2Point, S2Point, S2Point) -> R3Vector) -> S2Point {
-    guard vertices.count > 1 else { return vertices.first ?? S2Point.origin }
     let maxLength = .pi - 1e-5
     var sum = R3Vector(x: 0, y: 0, z: 0)
     var origin = vertex(0)
-    for i in 1..<vertices.count - 1 {
-      if vertex(i + 1).angle(origin) > maxLength {
-        let oldOrigin = origin
-        if origin == vertex(0) {
-          origin = vertex(0).pointCross(vertex(i))
-        } else if vertex(i).angle(vertex(0)) < maxLength {
-          origin = vertex(0)
-        } else {
-          origin = S2Point(raw: vertex(0).cross(oldOrigin))
-          sum = sum.add(f(vertex(0), oldOrigin, origin))
+    if vertices.count > 1 {
+      for i in 1..<vertices.count - 1 {
+        if vertex(i + 1).angle(origin) > maxLength {
+          let oldOrigin = origin
+          if origin == vertex(0) {
+            origin = vertex(0).pointCross(vertex(i))
+          } else if vertex(i).angle(vertex(0)) < maxLength {
+            origin = vertex(0)
+          } else {
+            origin = S2Point(raw: vertex(0).cross(oldOrigin))
+            sum = sum.add(f(vertex(0), oldOrigin, origin))
+          }
+          sum = sum.add(f(oldOrigin, vertex(i), origin))
         }
-        sum = sum.add(f(oldOrigin, vertex(i), origin))
+        sum = sum.add(f(origin, vertex(i), vertex(i + 1)))
       }
-      sum = sum.add(f(origin, vertex(i), vertex(i + 1)))
     }
     if origin != vertex(0) {
       sum = sum.add(f(origin, vertex(vertices.count - 1), vertex(0)))

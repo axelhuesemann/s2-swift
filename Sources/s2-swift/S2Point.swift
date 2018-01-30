@@ -693,9 +693,9 @@ extension S2Point: Equatable, CustomStringConvertible, Approximatable, Hashable,
   
   /// Reports whether self and point are equal within a small epsilon.
   public func approxEquals(_ point: S2Point) -> Bool {
-    return angle(point) <= S2Point.epsilon
+//    return angle(point) <= S2Point.epsilon
     // as opposed to the vector implementation
-    // return abs(x-point.x) < epsilon && abs(y-point.y) < epsilon && abs(z-point.z) < epsilon
+     return abs(x - point.x) < S2Point.epsilon && abs(y - point.y) < S2Point.epsilon && abs(z - point.z) < S2Point.epsilon
   }
   
   public var hashValue: Int {

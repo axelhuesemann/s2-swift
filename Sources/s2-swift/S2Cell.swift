@@ -16,11 +16,13 @@ public struct Cell: S2Region {
   static let poleMinLat = asin(sqrt(1.0 / 3.0)) - 0.5 * dblEpsilon
 
   //
-  let face: UInt8
-  let level: UInt8
-  let orientation: UInt8
   let id: CellId
+  // this is the cell ID data unpacked
+  let face: UInt8
   let uv: R2Rect
+  let level: UInt8
+  // this might be helpful to have?
+  let orientation: UInt8
 
   // MARK: inits / factory
   

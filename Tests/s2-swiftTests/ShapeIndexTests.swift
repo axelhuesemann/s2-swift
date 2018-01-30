@@ -140,7 +140,7 @@ class S2ShapeIndexTests: XCTestCase {
   // and that this matches the expected value of indexContainsCenter.
   func validateInterior(shape: S2Shape?, ci: CellId, indexContainsCenter: Bool) {
     if let shape = shape {
-      XCTAssertEqual(containsBruteForce(shape: shape, point: ci.point()), indexContainsCenter)
+      XCTAssertEqual(shape.containsBruteForce(point: ci.point()), indexContainsCenter)
     } else if indexContainsCenter {
         XCTFail("was nil or does not have an interior, but should have")
     }
