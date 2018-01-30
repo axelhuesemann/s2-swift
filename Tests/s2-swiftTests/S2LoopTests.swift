@@ -832,7 +832,7 @@ class S2LoopTests: XCTestCase {
       // The C++ tests also tests that the returned error message string contains
       // a specific set of text. That part of the test is skipped here.
       //      XCTAssertEqual(loop.findValidationError(), msg)
-    }
+    } 
   }
   
   // TODO(roberts): Convert these into changeable flags or parameters.
@@ -841,25 +841,25 @@ class S2LoopTests: XCTestCase {
   let numLoopSamples = 16
   let numQueriesPerLoop = 100
   
-  func testBenchmarkLoopContainsPoint() {
-    // Benchmark ContainsPoint() on regular loops. The query points for a loop are
-    // chosen so that they all lie in the loop's bounding rectangle (to avoid the
-    // quick-rejection code path).
-    // C++ ranges from 4 -> 256k by powers of 2 for number of vertices for benchmarking.
-    var nVertices = 4
-    for n in 1...17 {
-      var loops: [S2Loop] = [] // , numLoopSamples)
-      for i in 0..<numLoopSamples {
-        loops[i] = S2Loop.regularLoop(center: randomPoint(), radius: kmToAngle(km: 10.0), numVertices: nVertices)
-      }
-      let queries = loops.map { loop in
-        return (0..<numQueriesPerLoop).map { _ in samplePointFromRect(rect: loop.rectBound()) }
-      }
-      for i in 0..<n {
-        let _ = loops[i % numLoopSamples].contains(queries[i % numLoopSamples][i % numQueriesPerLoop])
-      }
-      nVertices *= 2
-    }
-  }
+//  func testBenchmarkLoopContainsPoint() {
+//    // Benchmark ContainsPoint() on regular loops. The query points for a loop are
+//    // chosen so that they all lie in the loop's bounding rectangle (to avoid the
+//    // quick-rejection code path).
+//    // C++ ranges from 4 -> 256k by powers of 2 for number of vertices for benchmarking.
+//    var nVertices = 4
+//    for n in 1...17 {
+//      var loops: [S2Loop] = [] // , numLoopSamples)
+//      for i in 0..<numLoopSamples {
+//        loops[i] = S2Loop.regularLoop(center: randomPoint(), radius: kmToAngle(km: 10.0), numVertices: nVertices)
+//      }
+//      let queries = loops.map { loop in
+//        return (0..<numQueriesPerLoop).map { _ in samplePointFromRect(rect: loop.rectBound()) }
+//      }
+//      for i in 0..<n {
+//        let _ = loops[i % numLoopSamples].contains(queries[i % numLoopSamples][i % numQueriesPerLoop])
+//      }
+//      nVertices *= 2
+//    }
+//  }
 
 }

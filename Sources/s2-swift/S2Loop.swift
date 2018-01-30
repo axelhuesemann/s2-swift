@@ -1116,6 +1116,7 @@ public struct S2Loop: Shape, S2RegionType {
   /// see that method for commentary. The C++ version uses a templated method.
   /// Any changes to this method may need corresponding changes to surfaceIntegralFloat64 as well.
   func surfaceIntegral(f: (S2Point, S2Point, S2Point) -> R3Vector) -> S2Point {
+    guard vertices.count > 1 else { return vertices.first ?? S2Point.origin }
     let maxLength = .pi - 1e-5
     var sum = R3Vector(x: 0, y: 0, z: 0)
     var origin = vertex(0)

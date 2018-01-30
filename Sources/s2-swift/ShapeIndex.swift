@@ -708,7 +708,7 @@ extension ShapeIndex {
       return
     }
     if shape.hasInterior() {
-      let containsFocus = containsBruteForce(shape: shape, point: t.focus())
+      let containsFocus = shape.containsBruteForce(point: t.focus())
       t.addShape(shapeId: shapeId, containsFocus: containsFocus)
     }
     let numEdges = shape.numEdges()
