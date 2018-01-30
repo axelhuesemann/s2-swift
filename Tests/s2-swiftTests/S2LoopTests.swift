@@ -817,7 +817,7 @@ class S2LoopTests: XCTestCase {
       // The C++ tests also tests that the returned error message string contains
       // a specific set of text. That part of the test is skipped here.
       //      XCTAssertEqual(loop.findValidationError(), msg)
-    }
+    } 
   }
   
   // TODO(roberts): Convert these into changeable flags or parameters.

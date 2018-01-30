@@ -65,7 +65,7 @@ extension ReferencePoint {
   init(origin: Bool, contained: Bool) {
     self.init(point: S2Point.origin, contained: contained)
   }
-
+  
 }
 
 /// Represents polygonal geometry in a flexible way. It is organized as a
@@ -179,14 +179,14 @@ struct RangeIterator {
 }
 
 extension RangeIterator {
-
+  
   /// Creates a new rangeIterator positioned at the first cell of the given index.
   init(index: ShapeIndex) {
     it = index.iterator()
     rangeMin = it.cellId().rangeMin()
     rangeMax = it.cellId().rangeMax()
   }
-
+  
   func cellId() -> CellId {
     return it.cellId()
   }
@@ -203,7 +203,7 @@ extension RangeIterator {
   func done() -> Bool {
     return it.done()
   }
-
+  
   /// Positions the iterator at the first cell that overlaps or follows
   /// the current range minimum of the target iterator, i.e. such that its
   /// rangeMax >= target.rangeMin.
@@ -236,127 +236,130 @@ extension RangeIterator {
     rangeMin = cellId().rangeMin()
     rangeMax = cellId().rangeMax()
   }
-
+  
 }
 
-/// referencePointForShape is a helper function for implementing various Shapes
-/// ReferencePoint functions.
-///
-/// Given a shape consisting of closed polygonal loops, the interior of the
-/// shape is defined as the region to the left of all edges (which must be
-/// oriented consistently). This function then chooses an arbitrary point and
-/// returns true if that point is contained by the shape.
-///
-/// Unlike Loop and Polygon, this method allows duplicate vertices and
-/// edges, which requires some extra care with definitions. The rule that we
-/// apply is that an edge and its reverse edge cancel each other: the result
-/// is the same as if that edge pair were not present. Therefore shapes that
-/// consist only of degenerate loop(s) are either empty or full; by convention,
-/// the shape is considered full if and only if it contains an empty loop (see
-/// laxPolygon for details).
-///
-/// Determining whether a loop on the sphere contains a point is harder than
-/// the corresponding problem in 2D plane geometry. It cannot be implemented
-/// just by counting edge crossings because there is no such thing as a point
-/// at infinity that is guaranteed to be outside the loop.
-///
-/// This function requires that the given Shape have an interior.
-func referencePoint(shape: S2Shape) -> ReferencePoint {
-  if shape.numEdges() == 0 {
-    // A shape with no edges is defined to be full if and only if it
-    // contains an empty loop.
-    return ReferencePoint(origin: true, contained: shape.numChains() > 0)
-  }
-  // Define a "matched" edge as one that can be paired with a corresponding
-  // reversed edge. Define a vertex as "balanced" if all of its edges are
-  // matched. In order to determine containment, we must find an unbalanced
-  // vertex. Often every vertex is unbalanced, so we start by trying an
-  // arbitrary vertex.
-  let edge = shape.edge(0)
-  if let ref = referencePointAtVertex(shape: shape, vTest: edge.v0) {
-    return ref
-  }
-  // That didn't work, so now we do some extra work to find an unbalanced
-  // vertex (if any). Essentially we gather a list of edges and a list of
-  // reversed edges, and then sort them. The first edge that appears in one
-  // list but not the other is guaranteed to be unmatched.
-  let n = shape.numEdges()
-  var edges = (0..<n).map { shape.edge($0) }
-  var revEdges = edges.map { Edge(v0: $0.v1, v1: $0.v0) }
-  edges.sort()
-  revEdges.sort()
-  for i in 0..<n {
-    if edges[i] < revEdges[i] { // edges[i] is unmatched
-      if let ref = referencePointAtVertex(shape: shape, vTest: edges[i].v0) {
-        return ref
+extension S2Shape {
+  
+  /// referencePointForShape is a helper function for implementing various Shapes
+  /// ReferencePoint functions.
+  ///
+  /// Given a shape consisting of closed polygonal loops, the interior of the
+  /// shape is defined as the region to the left of all edges (which must be
+  /// oriented consistently). This function then chooses an arbitrary point and
+  /// returns true if that point is contained by the shape.
+  ///
+  /// Unlike Loop and Polygon, this method allows duplicate vertices and
+  /// edges, which requires some extra care with definitions. The rule that we
+  /// apply is that an edge and its reverse edge cancel each other: the result
+  /// is the same as if that edge pair were not present. Therefore shapes that
+  /// consist only of degenerate loop(s) are either empty or full; by convention,
+  /// the shape is considered full if and only if it contains an empty loop (see
+  /// laxPolygon for details).
+  ///
+  /// Determining whether a loop on the sphere contains a point is harder than
+  /// the corresponding problem in 2D plane geometry. It cannot be implemented
+  /// just by counting edge crossings because there is no such thing as a point
+  /// at infinity that is guaranteed to be outside the loop.
+  ///
+  /// This function requires that the given Shape have an interior.
+  func referencePoint() -> ReferencePoint {
+    if numEdges() == 0 {
+      // A shape with no edges is defined to be full if and only if it
+      // contains an empty loop.
+      return ReferencePoint(origin: true, contained: numChains() > 0)
+    }
+    // Define a "matched" edge as one that can be paired with a corresponding
+    // reversed edge. Define a vertex as "balanced" if all of its edges are
+    // matched. In order to determine containment, we must find an unbalanced
+    // vertex. Often every vertex is unbalanced, so we start by trying an
+    // arbitrary vertex.
+    let edge = self.edge(0)
+    if let ref = referencePointAtVertex(vTest: edge.v0) {
+      return ref
+    }
+    // That didn't work, so now we do some extra work to find an unbalanced
+    // vertex (if any). Essentially we gather a list of edges and a list of
+    // reversed edges, and then sort them. The first edge that appears in one
+    // list but not the other is guaranteed to be unmatched.
+    let n = numEdges()
+    var edges = (0..<n).map { self.edge($0) }
+    var revEdges = edges.map { Edge(v0: $0.v1, v1: $0.v0) }
+    edges.sort()
+    revEdges.sort()
+    for i in 0..<n {
+      if edges[i] < revEdges[i] { // edges[i] is unmatched
+        if let ref = referencePointAtVertex(vTest: edges[i].v0) {
+          return ref
+        }
+      }
+      if revEdges[i] < edges[i] { // revEdges[i] is unmatched
+        if let ref = referencePointAtVertex(vTest: revEdges[i].v0) {
+          return ref
+        }
       }
     }
-    if revEdges[i] < edges[i] { // revEdges[i] is unmatched
-      if let ref = referencePointAtVertex(shape: shape, vTest: revEdges[i].v0) {
-        return ref
+    // All vertices are balanced, so this polygon is either empty or full. By
+    // convention it is defined to be full if it contains any empty loop.
+    for i in 0..<numChains() {
+      if chain(i).length == 0 {
+        return ReferencePoint(origin: true, contained: true)
       }
     }
+    return ReferencePoint(origin: true, contained: false)
   }
-  // All vertices are balanced, so this polygon is either empty or full. By
-  // convention it is defined to be full if it contains any empty loop.
-  for i in 0..<shape.numChains() {
-    if shape.chain(i).length == 0 {
-      return ReferencePoint(origin: true, contained: true)
+  
+  /// referencePointAtVertex reports whether the given vertex is unbalanced, and
+  /// returns a ReferencePoint indicating if the point is contained.
+  /// Otherwise returns false.
+  func referencePointAtVertex(vTest: S2Point) -> ReferencePoint? {
+    // Let P be an unbalanced vertex. Vertex P is defined to be inside the
+    // region if the region contains a particular direction vector starting from
+    // P, namely the direction p.Ortho(). This can be calculated using
+    // ContainsVertexQuery.
+    var containsQuery = ContainsVertexQuery()
+    let n = numEdges()
+    for e in 0..<n {
+      let edge = self.edge(e)
+      if edge.v0 == vTest {
+        containsQuery.addEdge(v: edge.v1, direction: 1)
+      }
+      if edge.v1 == vTest {
+        containsQuery.addEdge(v: edge.v0, direction: -1)
+      }
     }
-  }
-  return ReferencePoint(origin: true, contained: false)
-}
-
-/// referencePointAtVertex reports whether the given vertex is unbalanced, and
-/// returns a ReferencePoint indicating if the point is contained.
-/// Otherwise returns false.
-func referencePointAtVertex(shape: S2Shape, vTest: S2Point) -> ReferencePoint? {
-  // Let P be an unbalanced vertex. Vertex P is defined to be inside the
-  // region if the region contains a particular direction vector starting from
-  // P, namely the direction p.Ortho(). This can be calculated using
-  // ContainsVertexQuery.
-  var containsQuery = ContainsVertexQuery(target: vTest)
-  let n = shape.numEdges()
-  for e in 0..<n {
-    let edge = shape.edge(e)
-    if edge.v0 == vTest {
-      containsQuery.addEdge(v: edge.v1, direction: 1)
+    let containsSign = containsQuery.containsVertex(target: vTest)
+    if containsSign == 0 {
+      // There are no unmatched edges incident to this vertex.
+      return nil
     }
-    if edge.v1 == vTest {
-      containsQuery.addEdge(v: edge.v0, direction: -1)
+    return ReferencePoint(point: vTest, contained: containsSign > 0)
+  }
+  
+  /// containsBruteForce reports whether the given shape contains the given point.
+  /// Most clients should not use this method, since its running time is linear in
+  /// the number of shape edges. Instead clients should create a ShapeIndex and use
+  /// ContainsPointQuery, since this strategy is much more efficient when many
+  /// points need to be tested.
+  ///
+  /// Polygon boundaries are treated as being semi-open (see ContainsPointQuery
+  /// and VertexModel for other options).
+  func containsBruteForce(point: S2Point) -> Bool {
+    if !hasInterior() {
+      return false
     }
+    let refPoint = referencePoint()
+    if refPoint.point == point {
+      return refPoint.contained
+    }
+    var crosser = EdgeCrosser(a: refPoint.point, b: point)
+    var inside = refPoint.contained
+    for e in 0..<numEdges() {
+      let edge = self.edge(e)
+      inside = inside != crosser.isEdgeOrVertexCrossing(c: edge.v0, d: edge.v1)
+    }
+    return inside
   }
-  let containsSign = containsQuery.containsVertex()
-  if containsSign == 0 {
-    // There are no unmatched edges incident to this vertex.
-    return nil
-  }
-  return ReferencePoint(point: vTest, contained: containsSign > 0)
-}
-
-/// containsBruteForce reports whether the given shape contains the given point.
-/// Most clients should not use this method, since its running time is linear in
-/// the number of shape edges. Instead clients should create a ShapeIndex and use
-/// ContainsPointQuery, since this strategy is much more efficient when many
-/// points need to be tested.
-///
-/// Polygon boundaries are treated as being semi-open (see ContainsPointQuery
-/// and VertexModel for other options).
-func containsBruteForce(shape: S2Shape, point: S2Point) -> Bool {
-  if !shape.hasInterior() {
-    return false
-  }
-  let refPoint = shape.referencePoint()
-  if refPoint.point == point {
-    return refPoint.contained
-  }
-  var crosser = EdgeCrosser(a: refPoint.point, b: point)
-  var inside = refPoint.contained
-  for e in 0..<shape.numEdges() {
-    let edge = shape.edge(e)
-    inside = inside != crosser.isEdgeOrVertexCrossing(c: edge.v0, d: edge.v1)
-  }
-  return inside
 }
 
 /// ContainsVertexQuery is used to track the edges entering and leaving the
@@ -367,29 +370,23 @@ func containsBruteForce(shape: S2Shape, point: S2Point) -> Bool {
 /// which means that if several polygons tile the region around a vertex,
 /// then exactly one of those polygons contains that vertex.
 struct ContainsVertexQuery {
-  let target: S2Point
-  var edgeMap: [S2Point: Int]
+  var edgeMap: [S2Point: Int] = [:]
 }
 
 extension ContainsVertexQuery {
-
-  /// Returns a new query for the given vertex whose
-  /// containment will be determined.
-  init(target: S2Point) {
-    self.target = target
-    edgeMap = [:]
-  }
-
+  
   /// Adds the edge between target and v with the given direction.
   /// (+1 = outgoing, -1 = incoming, 0 = degenerate).
   mutating func addEdge(v: S2Point, direction: Int) {
     let value = edgeMap[v] ?? 0
     edgeMap[v] = value + direction
   }
-
+  
   /// ContainsVertex reports a +1 if the target vertex is contained, -1 if it is
   /// not contained, and 0 if the incident edges consisted of matched sibling pairs.
-  func containsVertex() -> Int {
+  func containsVertex(target: S2Point) -> Int {
+//  func containsVertex(target: S2Point, adding: [(S2Point, Int)]) -> Int {
+//    var edgeMap: [S2Point: Int]
     // Find the unmatched edge that is immediately clockwise from Ortho(P).
     let referenceDir = S2Point(raw: target.ortho())
     var bestPoint = referenceDir
@@ -405,6 +402,6 @@ extension ContainsVertexQuery {
     }
     return bestDir
   }
-
+  
 }
 
